@@ -10,6 +10,7 @@ import {
   TYPE_EMOJI,
   assignPokemon,
   getPokemonSprite,
+  getEvolutionName,
   fmtBalance,
   fmtSeconds,
 } from "@/lib/pokemon";
@@ -129,7 +130,7 @@ export default function Leaderboard({ holders, offline }: LeaderboardProps) {
                       className={styles.pkSprite}
                     />
                     <div>
-                      <div className={styles.pkName}>{pk?.name ?? "???"}</div>
+                      <div className={styles.pkName}>{getEvolutionName(pkId, lv)}</div>
                       <div className={styles.pkType}>
                         {pk ? `${TYPE_EMOJI[pk.type]} LV.${lv}` : ""}
                       </div>

@@ -35,24 +35,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Restore wallet from localStorage on mount
+  // Restore wallet from localStorage on mount — NO automatic popup
   useEffect(() => {
     const saved = localStorage.getItem("pkmn_wallet");
     if (saved) {
       setWallet(saved);
       setIsSigned(true);
-    } else {
-      // Try to get address from MetaMask if already connected (no prompt)
-      const ethereum = (window as any).ethereum;
-      if (ethereum) {
-        ethereum
-          .request({ method: "eth_accounts" })
-          .then((accounts: string[]) => {
-            if (accounts[0]) setWallet(accounts[0].toLowerCase());
-          })
-          .catch(() => {});
-      }
     }
+    // Removed: eth_accounts check — that was triggering Phantom/MetaMask popup
+    // Users must explicitly click CONNECT
   }, []);
 
   const connect = useCallback(async () => {
@@ -94,6 +85,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       // Step 3 — Set wallet immediately so Oak can work right away
       setWallet(address);
+      localStorage.setItem("pkmn_wallet", address); // save immediately, no SIWE needed
 
       // Step 4 — Try SIWE in background (optional, for protected routes)
       try {

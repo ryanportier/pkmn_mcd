@@ -17,15 +17,43 @@ export async function GET() {
     .limit(1)
     .single();
 
-  // If no active round, create one
-  if (!round) {
+  // If expired → settle + create new round automatically
+  if (round && new Date(round.ends_at) < new Date()) {
+    await supabase
+      .from("vault_rounds")
+      .update({ status: "settled", shifts_completed: (round.shifts_completed ?? 0) + 1 })
+      .eq("id", round.id);
+
+    const prevUsd = Number(round.total_usd ?? 0);
+    const prevEth = Number(round.total_eth ?? 0);
+
     const startsAt = new Date();
-    const endsAt = new Date(startsAt.getTime() + ROUND_DURATION);
+    const endsAt   = new Date(startsAt.getTime() + ROUND_DURATION);
     const { data: newRound } = await supabase
       .from("vault_rounds")
       .insert({
         starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
+        ends_at:   endsAt.toISOString(),
+        total_eth: prevEth,
+        total_usd: prevUsd,
+        status: "active",
+        shifts_completed: 0,
+      })
+      .select()
+      .single();
+
+    round = newRound;
+  }
+
+  // No active round → create first one
+  if (!round) {
+    const startsAt = new Date();
+    const endsAt   = new Date(startsAt.getTime() + ROUND_DURATION);
+    const { data: newRound } = await supabase
+      .from("vault_rounds")
+      .insert({
+        starts_at: startsAt.toISOString(),
+        ends_at:   endsAt.toISOString(),
         total_eth: 0,
         total_usd: 0,
         status: "active",
@@ -34,18 +62,6 @@ export async function GET() {
       .select()
       .single();
     round = newRound;
-  }
-
-  // Check if round expired → settle it
-  if (round && new Date(round.ends_at) < new Date()) {
-    await supabase
-      .from("vault_rounds")
-      .update({ status: "settling" })
-      .eq("id", round.id);
-
-    // Trigger settlement (async, fire and forget in real impl)
-    // In production, use a Supabase Edge Function or cron job
-    round.status = "settling";
   }
 
   const priceData = await getTokenPrice(

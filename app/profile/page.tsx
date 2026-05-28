@@ -12,6 +12,7 @@ import {
   assignPokemon,
   getPokemonSprite,
   getEvolutionProgress,
+  getEvolutionName,
   EVOLUTION_THRESHOLDS,
   fmtBalance,
   fmtSeconds,
@@ -168,7 +169,7 @@ export default function ProfilePage() {
                   <div className={`type-badge type-${pk.type}`} style={{ marginBottom: 8 }}>
                     {TYPE_EMOJI[pk.type]} {pk.type.toUpperCase()}
                   </div>
-                  <div className={styles.pokeName}>{pk.name.toUpperCase()}</div>
+                  <div className={styles.pokeName}>{getEvolutionName(pokemonId!, level).toUpperCase()}</div>
                   <div className={styles.pokeRole}>{pk.role}</div>
                   <p className={styles.pokeDesc}>{pk.description}</p>
 

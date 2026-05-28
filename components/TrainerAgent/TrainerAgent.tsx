@@ -18,6 +18,9 @@ const TOOL_LABELS: Record<string, string> = {
   calculate_swap_needed:  "Running calculations…",
   save_strategy:          "Saving your strategy…",
   get_payout_history:     "Reviewing your earnings…",
+  open_tweet_intent:      "Generating tweet link…",
+  check_claimable_payout: "Checking your claimable rewards…",
+  open_base_mcp_swap:     "Generating swap link…",
 };
 
 const SUGGESTIONS = [
@@ -25,7 +28,9 @@ const SUGGESTIONS = [
   "How much ETH to reach LV.3?",
   "Show me the top 5 trainers",
   "How long until the next payout?",
-  "What's the $PKMN price right now?",
+  "Help me tweet the magic phrase",
+  "I want to buy more $PKMN to evolve faster",
+  "Do I have any rewards to claim?",
   "Am I going to earn anything this round?",
 ];
 
@@ -35,15 +40,25 @@ export default function TrainerAgent() {
     useAgent(wallet);
   const [input, setInput] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [sentIntro, setSentIntro] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const pokemonId = wallet ? assignPokemon(wallet) : null;
   const pokemon = pokemonId ? POKEMON[pokemonId] : null;
 
+  // Auto-send intro message when chat opens and wallet is connected
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeTools]);
+    if (isOpen && wallet && messages.length === 0 && !sentIntro && !isStreaming) {
+      setSentIntro(true);
+      sendMessage(`My wallet is ${wallet}. Analyze my position, tell me my evolution level, how close I am to the next level, and suggest what I should do next.`);
+    }
+  }, [isOpen, wallet, messages.length, sentIntro, isStreaming]);
+
+  // Reset intro flag when chat is cleared
+  useEffect(() => {
+    if (messages.length === 0) setSentIntro(false);
+  }, [messages.length]);
 
   function handleSend() {
     const text = input.trim();
@@ -135,23 +150,35 @@ export default function TrainerAgent() {
             <div className={styles.messages}>
               {messages.length === 0 && (
                 <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}>🔬</div>
-                  <p className={styles.emptyText}>
-                    My research lab is ready. Ask me about your $PKMN position!
-                  </p>
-                  {/* Quick suggestions */}
-                  <div className={styles.suggestions}>
-                    {SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        className={styles.suggBtn}
-                        onClick={() => sendMessage(s)}
-                        disabled={!isConnected || isStreaming}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                  {wallet ? (
+                    // Wallet connected — show loading spinner while intro sends
+                    <div className={styles.emptyLoading}>
+                      <span className={styles.emptySpinner} />
+                      <p className={styles.emptyText}>
+                        Analyzing your trainer data…
+                      </p>
+                    </div>
+                  ) : (
+                    // No wallet — show suggestions
+                    <>
+                      <div className={styles.emptyIcon}>🔬</div>
+                      <p className={styles.emptyText}>
+                        Connect your wallet so Professor Oak can analyze your position!
+                      </p>
+                      <div className={styles.suggestions}>
+                        {SUGGESTIONS.map((s) => (
+                          <button
+                            key={s}
+                            className={styles.suggBtn}
+                            onClick={() => sendMessage(s)}
+                            disabled={isStreaming}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -189,6 +216,46 @@ export default function TrainerAgent() {
                         <span className={styles.cursor}>▋</span>
                       )}
                     </div>
+
+                    {/* Action buttons from tool results */}
+                    {msg.tool_result && (
+                      <div className={styles.actionBtns}>
+                        {(msg.tool_result as any).tweet_url && (
+                          <a
+                            href={(msg.tool_result as any).tweet_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.actionBtn}
+                            style={{ borderColor: "#1d9bf0", color: "#1d9bf0" }}
+                          >
+                            🐦 TWEET FOR ×{(msg.tool_result as any).multiplier} BONUS
+                          </a>
+                        )}
+                        {(msg.tool_result as any).uniswap_url && (
+                          <a
+                            href={(msg.tool_result as any).uniswap_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.actionBtn}
+                            style={{ borderColor: "var(--purple)", color: "var(--purple)" }}
+                          >
+                            🔄 SWAP ON UNISWAP
+                          </a>
+                        )}
+                        {(msg.tool_result as any).base_app_url && (
+                          <a
+                            href={(msg.tool_result as any).base_app_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.actionBtn}
+                            style={{ borderColor: "var(--blue)", color: "var(--blue)" }}
+                          >
+                            🔵 SWAP ON BASE APP
+                          </a>
+                        )}
+                      </div>
+                    )}
+
                     <div className={styles.msgTime}>
                       {new Date(msg.timestamp).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -222,6 +289,21 @@ export default function TrainerAgent() {
 
               <div ref={bottomRef} />
             </div>
+
+            {/* Quick suggestions after intro — show when Oak has responded and not streaming */}
+            {messages.length > 0 && !isStreaming && wallet && (
+              <div className={styles.postSuggestions}>
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    className={styles.suggBtnSmall}
+                    onClick={() => sendMessage(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Input area */}
             <div className={styles.inputArea}>

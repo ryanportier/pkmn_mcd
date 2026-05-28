@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getWalletTokenBalance } from "@/lib/alchemy";
-import { assignPokemon, POKEMON, getEvolutionLevel } from "@/lib/pokemon";
+import { assignPokemon, POKEMON, getEvolutionLevel, getEvolutionName } from "@/lib/pokemon";
 
 const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT!;
 const DECIMALS = 18;
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         success: true,
         already_registered: true,
         wallet: cleanWallet,
-        pokemon: pk?.name ?? "Unknown",
+        pokemon: getEvolutionName(pokemonId, level),
         level,
         balance,
         twitter_handle: cleanTwitter ?? existing.twitter_handle,
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       success: true,
       already_registered: false,
       wallet: cleanWallet,
-      pokemon: pk?.name ?? "Unknown",
+      pokemon: getEvolutionName(pokemonId, level),
       level,
       balance,
       twitter_handle: cleanTwitter,

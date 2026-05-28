@@ -126,6 +126,62 @@ export const AGENT_TOOLS = [
       required: ["wallet"],
     },
   },
+  {
+    name: "open_tweet_intent",
+    description:
+      "Generate a Twitter/X intent URL so the trainer can tweet the magic phrase or a custom $PKMN post to earn their score multiplier bonus. Returns a URL the trainer should click.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["magic_phrase", "own_post"],
+          description: "Type of tweet: magic_phrase gets ×2, own_post gets ×4",
+        },
+        magic_phrase: {
+          type: "string",
+          description: "The current magic phrase to include in the tweet",
+        },
+        contract_address: {
+          type: "string",
+          description: "The $PKMN contract address to include",
+        },
+      },
+      required: ["type"],
+    },
+  },
+  {
+    name: "check_claimable_payout",
+    description:
+      "Check if the trainer has any pending vault payouts they can claim. Returns claimable amount in ETH and USD.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        wallet: { type: "string", description: "Trainer wallet address" },
+      },
+      required: ["wallet"],
+    },
+  },
+  {
+    name: "open_base_mcp_swap",
+    description:
+      "Generate a Base MCP swap link so the trainer can buy more $PKMN to evolve their Pokémon. Use this when the trainer wants to level up or asks how to buy more tokens.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        wallet: { type: "string", description: "Trainer wallet address" },
+        eth_amount: {
+          type: "number",
+          description: "Amount of ETH to swap for $PKMN",
+        },
+        reason: {
+          type: "string",
+          description: "Why the trainer should swap (e.g. 'reach LV.3', 'overtake rank #2')",
+        },
+      },
+      required: ["wallet", "eth_amount"],
+    },
+  },
 ] as const;
 
 // ─── Tool executor ────────────────────────────────────────────────────────────
@@ -388,7 +444,166 @@ export async function executeTool(
       };
     }
 
+    case "open_tweet_intent": {
+      const CONTRACT_ADDR = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
+      const type     = input.type as string;
+      const phrase   = (input.magic_phrase as string) ?? "gotta catch em all";
+      const ca       = (input.contract_address as string) ?? CONTRACT_ADDR;
+      const multiplier = type === "own_post" ? 4 : 2;
+      const text = type === "magic_phrase"
+        ? `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`
+        : `🔥 Holding $PKMN on Base — Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Base`;
+      const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
+      return {
+        tweet_url: url,
+        multiplier,
+        type,
+        instructions: `Click this link to tweet and earn your ×${multiplier} score bonus: ${url}\n\nAfter tweeting, submit the tweet URL in the Register section.`,
+      };
+    }
+
+    case "check_claimable_payout": {
+      const walletAddr = (input.wallet as string).toLowerCase();
+      const { data: payoutsData } = await supabase
+        .from("payouts").select("*").eq("wallet", walletAddr)
+        .order("won_at", { ascending: false }).limit(10);
+      const { data: holderData } = await supabase
+        .from("holders").select("estimated_payout_usd, share_pct")
+        .eq("wallet", walletAddr).single();
+      const unclaimed = (payoutsData ?? []).filter((p: any) => !p.claimed);
+      const unclaimedUsd = unclaimed.reduce((s: number, p: any) => s + (p.amount_usd ?? 0), 0);
+      const unclaimedEth = unclaimed.reduce((s: number, p: any) => s + (p.amount_eth ?? 0), 0);
+      return {
+        unclaimed_payouts: unclaimed.length,
+        unclaimed_eth: unclaimedEth.toFixed(6),
+        unclaimed_usd: unclaimedUsd.toFixed(2),
+        current_round_estimate_usd: holderData?.estimated_payout_usd?.toFixed(2) ?? "0.00",
+        current_share_pct: holderData?.share_pct?.toFixed(2) ?? "0.00",
+        message: unclaimedUsd > 0
+          ? `You have $${unclaimedUsd.toFixed(2)} in unclaimed vault rewards!`
+          : "No unclaimed payouts yet. Keep holding!",
+      };
+    }
+
+    case "open_base_mcp_swap": {
+      const CONTRACT_ADDR = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
+      const ethAmt  = Number(input.eth_amount ?? 0.01);
+      const reason  = (input.reason as string) ?? "evolve your Pokémon";
+      const uniUrl  = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}&chain=base`;
+      const baseUrl = `https://app.base.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}`;
+      return {
+        eth_amount: ethAmt,
+        reason,
+        uniswap_url: uniUrl,
+        base_app_url: baseUrl,
+        instructions: `To ${reason}:\n👉 Swap on Uniswap: ${uniUrl}\n👉 Or Base App: ${baseUrl}\n\nYour Pokémon will evolve in the next sync (~5 min).`,
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${toolName}` };
+  }
+}
+
+// ─── New tool executors (appended) ───────────────────────────────────────────
+
+export async function executeNewTool(
+  toolName: string,
+  input: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
+
+  switch (toolName) {
+
+    case "open_tweet_intent": {
+      const type     = input.type as string;
+      const phrase   = (input.magic_phrase as string) ?? "gotta catch em all";
+      const ca       = (input.contract_address as string) ?? CONTRACT;
+
+      let text = "";
+      let multiplier = 2;
+
+      if (type === "magic_phrase") {
+        text = `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`;
+        multiplier = 2;
+      } else {
+        text = `🔥 Holding $PKMN on Base — Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Base`;
+        multiplier = 4;
+      }
+
+      const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
+
+      return {
+        tweet_url: url,
+        multiplier,
+        instructions: `Click this link to open Twitter with the pre-filled tweet. After posting, submit the tweet URL in the Register section to activate your ×${multiplier} bonus.`,
+        type,
+      };
+    }
+
+    case "check_claimable_payout": {
+      const wallet = (input.wallet as string).toLowerCase();
+      const { getSupabaseAdmin } = await import("@/lib/supabase");
+      const supabase = getSupabaseAdmin();
+
+      // Get unclaimed payouts
+      const { data: payouts } = await supabase
+        .from("payouts")
+        .select("*")
+        .eq("wallet", wallet)
+        .order("won_at", { ascending: false })
+        .limit(10);
+
+      const { data: holder } = await supabase
+        .from("holders")
+        .select("estimated_payout_usd, share_pct")
+        .eq("wallet", wallet)
+        .single();
+
+      const totalUnclaimed = (payouts ?? [])
+        .filter((p) => !p.claimed)
+        .reduce((sum, p) => sum + (p.amount_eth ?? 0), 0);
+
+      const totalUnclaimedUsd = (payouts ?? [])
+        .filter((p) => !p.claimed)
+        .reduce((sum, p) => sum + (p.amount_usd ?? 0), 0);
+
+      return {
+        wallet,
+        unclaimed_payouts: (payouts ?? []).filter((p) => !p.claimed).length,
+        unclaimed_eth: totalUnclaimed.toFixed(6),
+        unclaimed_usd: totalUnclaimedUsd.toFixed(2),
+        current_round_estimate_usd: holder?.estimated_payout_usd?.toFixed(2) ?? "0.00",
+        current_share_pct: holder?.share_pct?.toFixed(2) ?? "0.00",
+        message: totalUnclaimedUsd > 0
+          ? `You have $${totalUnclaimedUsd.toFixed(2)} in unclaimed payouts! Vault claim via Base MCP coming soon.`
+          : "No unclaimed payouts yet. Keep holding to earn from the next vault round!",
+      };
+    }
+
+    case "open_base_mcp_swap": {
+      const wallet    = (input.wallet as string).toLowerCase();
+      const ethAmount = Number(input.eth_amount ?? 0.01);
+      const reason    = (input.reason as string) ?? "evolve your Pokémon";
+
+      // Base MCP swap intent — opens Base App for user to approve
+      const swapUrl = `https://app.base.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}`;
+
+      // Also build a Uniswap link as fallback
+      const uniswapUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}&chain=base`;
+
+      return {
+        wallet,
+        eth_amount: ethAmount,
+        reason,
+        base_app_url: swapUrl,
+        uniswap_url: uniswapUrl,
+        instructions: `To ${reason}, swap ${ethAmount} ETH for $PKMN:\n1. Click the Base App link\n2. Review and approve the swap\n3. Your Pokémon will evolve after the next sync (every 5 min)`,
+        note: "Base MCP direct swap integration coming soon — for now use Base App or Uniswap.",
+      };
+    }
+
+    default:
+      return { error: `Unknown new tool: ${toolName}` };
   }
 }

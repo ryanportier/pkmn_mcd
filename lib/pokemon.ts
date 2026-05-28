@@ -39,6 +39,19 @@ export const POKEMON: Record<number, Pokemon> = {
   },
 };
 
+// Evolution names per starter [LV1, LV2, LV3, LV4, LV5]
+const EVOLUTION_NAMES: Record<number, string[]> = {
+  1: ["Bulbasaur", "Ivysaur", "Venusaur", "Mega Venusaur", "Gigantamax Venusaur"],
+  4: ["Charmander", "Charmeleon", "Charizard", "Mega Charizard X", "Gigantamax Charizard"],
+  7: ["Squirtle", "Wartortle", "Blastoise", "Mega Blastoise", "Gigantamax Blastoise"],
+};
+
+export function getEvolutionName(pokemonId: number, level: number): string {
+  const names = EVOLUTION_NAMES[pokemonId];
+  if (!names) return POKEMON[pokemonId]?.name ?? "Unknown";
+  return names[Math.min(level - 1, 4)];
+}
+
 export const STARTER_IDS = [1, 4, 7] as const;
 
 export const TYPE_COLOR: Record<PokemonType, string> = {

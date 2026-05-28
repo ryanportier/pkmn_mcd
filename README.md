@@ -1,277 +1,192 @@
-# $PKMN — Catch. Evolve. Earn.
+# $PKMN — Catch. Evolve. Earn. 🔴⚪
 
-$PKMN is a meme token on Base (Ethereum L2) that turns holding crypto into a Pokémon game. Every wallet that holds $PKMN gets assigned a starter Pokémon, evolves it by accumulating balance and hold time, competes on a live leaderboard, and earns ETH from a vault that fills with trading fees each round.
+Token meme Pokémon en Base (Ethereum L2). Hold $PKMN, evoluciona tu Pokémon, gana ETH del vault.
 
-The token solves a real problem in meme coin culture: there's no reason to hold. $PKMN creates one — the longer you hold and the more you hold, the stronger your Pokémon and the bigger your cut of the vault. Selling resets your progress. Tweeting about it multiplies your score.
+## Stack
 
----
-
-## How it works
-
-### 1. Buy $PKMN on Base
-Get $PKMN on any Base DEX (Uniswap, Aerodrome). Your wallet address deterministically assigns you one of three starter Pokémon — Bulbasaur, Charmander, or Squirtle — no randomness, no gas, same wallet always gets the same Pokémon.
-
-### 2. Hold to Evolve
-Your score grows every 5 minutes the sync runs:
-
-```
-score = balance × (seconds_held / 3600) × evolution_multiplier
-```
-
-Evolution levels unlock as your balance grows:
-
-| Level | Balance needed | Score multiplier |
-|-------|---------------|-----------------|
-| LV.1  | Any           | ×1              |
-| LV.2  | 1K $PKMN      | ×2              |
-| LV.3  | 10K $PKMN     | ×3              |
-| LV.4  | 100K $PKMN    | ×4              |
-| LV.5  | 1M $PKMN      | ×5              |
-
-Selling drops your balance and **resets your hold time to zero**. The game punishes paper hands.
-
-### 3. Tweet & Boost
-Register your wallet (no signature required — just paste your address) and link your X handle. Then tweet to multiply your score:
-
-- **Tweet the magic phrase** → `×2` to your multiplier
-- **Post your own call with the CA** → `×4` to your multiplier
-
-Magic phrases rotate every 5 minutes. The boost stacks on top of your evolution level — a LV.3 trainer with an own-post bonus becomes `×3 × 4 = ×12`.
-
-### 4. Earn from the Vault
-Every hour, the vault pays out. Trading fees from $PKMN swaps accumulate in the vault wallet. When the countdown hits zero, holders split the vault proportional to their score:
-
-```
-your_payout = (your_score / total_scores) × vault_total × 0.80
-```
-
-80% goes to holders. The higher your score, the bigger your slice.
+- **Next.js 16** (App Router, Turbopack, CSS Modules)
+- **Supabase** (DB + Realtime)
+- **Viem** (cliente Base L2)
+- **Alchemy** (indexar holders ERC-20)
+- **DexScreener API** (precio en tiempo real, sin API key)
+- **SIWE** (Sign-In With Ethereum)
 
 ---
 
-## Tech stack
+## Setup rápido
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 (App Router, Turbopack, CSS Modules) |
-| Database | Supabase (Postgres + Realtime) |
-| Blockchain reads | Viem (Base L2 client) |
-| Holder indexing | Alchemy (`eth_getLogs` — free tier) |
-| Token price | DexScreener API (no key needed) |
-| AI Trainer Agent | Bankr LLM Gateway → Claude Sonnet |
-| Auth | SIWE (Sign-In With Ethereum) |
-| Cron | GitHub Actions (free, every 5 min) |
-
----
-
-## Project structure
-
-```
-app/
-├── api/
-│   ├── agent/chat/        # Streaming AI agent (Prof Oak)
-│   ├── auth/              # SIWE nonce + verify
-│   ├── dashboard/         # Main data endpoint (polled every 5s)
-│   ├── holders/sync/      # Cron: Alchemy → Supabase
-│   ├── trainer/           # Trainer profile + callout submit
-│   └── vault/             # Vault round state
-├── profile/               # Public trainer profile page
-└── trainer/               # Legacy trainer page
-
-components/
-├── Hero/                  # Landing hero with CA + magic phrase
-├── StarterSelection/      # 3 Pokémon cards with evolution state
-├── VaultCountdown/        # Live countdown + evolution table
-├── Leaderboard/           # Paginated live rankings (20/page)
-├── RegisterTrainer/       # Wallet registration + tweet bonus flow
-├── TrainerAgent/          # Prof Oak AI chat (streaming)
-├── PriceBar/              # Live price ticker (DexScreener)
-├── PayoutsPanel/          # Recent vault distributions
-├── Nav/ Footer/           # Navigation with custom logo
-
-lib/
-├── alchemy.ts             # eth_getLogs holder scanner
-├── agentTools.ts          # Claude tools: balance, leaderboard, vault…
-├── pokemon.ts             # Evolution logic, score calc, formatters
-├── dexscreener.ts         # Token price fetcher
-├── auth.ts                # SIWE + JWT helpers
-└── supabase.ts            # Browser + admin clients
-```
-
----
-
-## Setup
-
-### 1. Install
+### 1. Instalar dependencias
 
 ```bash
 npm install
 ```
 
-### 2. Environment variables
+### 2. Variables de entorno
 
 ```bash
 cp .env.example .env.local
 ```
 
-Required variables:
+Edita `.env.local` con tus valores:
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Alchemy (free plan works)
-ALCHEMY_API_KEY=
-NEXT_PUBLIC_BASE_RPC=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY
+ALCHEMY_API_KEY=tu_alchemy_key
+NEXT_PUBLIC_BASE_RPC=https://base-mainnet.g.alchemy.com/v2/tu_alchemy_key
 
-# Token contract on Base
-NEXT_PUBLIC_PKMN_CONTRACT=0x...
+NEXT_PUBLIC_PKMN_CONTRACT=0xTU_CONTRACT_ADDRESS_AQUI
 
-# Auth
-JWT_SECRET=                    # openssl rand -hex 32
+JWT_SECRET=genera_con_openssl_rand_hex_32
 
-# Cron auth
-CRON_SECRET=                   # any random string
+CRON_SECRET=otro_string_secreto
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Vault wallet (where trading fees land)
-VAULT_WALLET_ADDRESS=0x...
-
-# AI Agent (Bankr LLM Gateway — covers Claude costs from token fees)
-BANKR_API_KEY=bk_...
+VAULT_ROUND_DURATION_SECONDS=3600
+VAULT_PAYOUT_PERCENT=80
 ```
 
-### 3. Database
+### 3. Crear tablas en Supabase
 
-Run `supabase/schema.sql` in the Supabase SQL Editor. It creates:
+1. Ve a **Supabase Dashboard → SQL Editor**
+2. Copia y ejecuta el contenido de `supabase/schema.sql`
+3. Ve a **Database → Replication** y activa Realtime para las tablas `holders`, `vault_rounds`, `payouts`
 
-- `holders` — wallet balances, hold times, scores, evolution levels
-- `vault_rounds` — active round with countdown and vault size
-- `payouts` — historical distributions per wallet per round
-- `trainer_profiles` — registered wallets, X handles, callout status
-- `agent_strategies` — saved trainer strategies for Prof Oak
-
-Enable Realtime on `holders`, `vault_rounds`, `payouts` in Supabase → Database → Replication.
-
-### 4. Run
+### 4. Correr en desarrollo
 
 ```bash
 npm run dev
 ```
 
-### 5. First sync
+Abre [http://localhost:3000](http://localhost:3000)
 
-With the dev server running, sync holders from the blockchain:
+---
 
+## Sincronizar holders on-chain
+
+El leaderboard se alimenta de datos on-chain sincronizados a Supabase.
+
+**Manual (desarrollo):**
 ```bash
-$env:CRON_SECRET="your_secret"; $env:NEXT_PUBLIC_APP_URL="http://localhost:3000"; npm run sync-holders
+npm run sync-holders
 ```
 
-Or with lookback control:
+**Producción con cron** (Vercel Cron Jobs en `vercel.json`):
+```json
+{
+  "crons": [{
+    "path": "/api/holders/sync",
+    "schedule": "*/5 * * * *"
+  }]
+}
+```
+> Recuerda setear `CRON_SECRET` en las variables de entorno de Vercel.
 
-```bash
-npm run sync-holders -- --lookback 1h   # new token
-npm run sync-holders -- --lookback 1d   # default
-npm run sync-holders -- --lookback 7d   # established token
+---
+
+## Integración con Base MCP
+
+Una vez que el usuario conecta su wallet (SIWE), puede usar **Base MCP** desde Claude para:
+- Ver su balance de $PKMN
+- Hacer swaps directamente desde el chat
+- Transferir tokens
+- Ver el estado del vault
+
+El servidor Base MCP se conecta via OAuth 2.1 a la Base App. No requiere claves privadas.
+
+### Ejemplo de uso con Claude
+
+```
+"Swap 0.01 ETH por $PKMN en Base"
+"¿Cuánto $PKMN tengo en mi wallet?"
+"Transferir 1000 $PKMN a 0x..."
 ```
 
 ---
 
-## Automated sync (GitHub Actions)
+## Estructura del proyecto
 
-The sync runs every 5 minutes via `.github/workflows/sync-holders.yml`. No Vercel Pro required.
-
-Add two secrets to your GitHub repo (**Settings → Secrets and variables → Actions**):
-
-| Secret | Value |
-|---|---|
-| `APP_URL` | `https://your-production-domain.vercel.app` |
-| `CRON_SECRET` | same value as in your `.env.local` |
-
-The workflow calls `POST /api/holders/sync` on schedule. Each run:
-1. Scans `eth_getLogs` for Transfer events on your contract
-2. Checks current balance of every address that ever received tokens
-3. Increments hold time for wallets that haven't sold
-4. Resets hold time for wallets that dropped below 99% of previous balance
-5. Recalculates scores, shares, and estimated payouts
-6. Reads your vault wallet ETH balance via Alchemy and updates the vault round
-7. Applies tweet bonus multipliers from approved callouts
-
----
-
-## Approving tweet bonuses
-
-When a trainer submits a tweet for review, `trainer_profiles.callout_status` becomes `'pending'`. To approve manually in Supabase SQL Editor:
-
-```sql
--- Magic phrase tweet (×2)
-UPDATE trainer_profiles
-SET callout_status = 'approved', callout_multiplier = 2
-WHERE twitter_handle = 'theirhandle';
-
--- Own post with CA (×4)
-UPDATE trainer_profiles
-SET callout_status = 'approved', callout_multiplier = 4
-WHERE twitter_handle = 'theirhandle';
+```
+pkmn-base/
+├── app/
+│   ├── layout.tsx              # Root layout + fonts + providers
+│   ├── page.tsx                # Homepage (Hero + Starters + Vault + Leaderboard)
+│   └── api/
+│       ├── auth/nonce/         # GET  — genera nonce SIWE
+│       ├── auth/verify/        # POST — verifica firma SIWE, devuelve JWT
+│       ├── dashboard/          # GET  — datos del dashboard (polled c/5s)
+│       ├── trainer/            # GET  — datos de un trainer por wallet
+│       ├── vault/              # GET  — estado del vault activo
+│       └── holders/sync/       # POST — sync on-chain → Supabase (cron)
+├── components/
+│   ├── Nav/                    # Barra de navegación sticky
+│   ├── PriceBar/               # Ticker de precio DexScreener
+│   ├── Hero/                   # Hero section con CA y botones
+│   ├── StarterSelection/       # Cards de Pokémon iniciales
+│   ├── VaultCountdown/         # Cuenta regresiva + tabla de evolución
+│   ├── Leaderboard/            # Rankings en vivo
+│   ├── PayoutsPanel/           # Historial de payouts
+│   ├── HowItWorks/             # Explicación del juego
+│   └── Footer/
+├── context/
+│   └── WalletContext.tsx       # Estado de wallet + SIWE connect/disconnect
+├── hooks/
+│   └── useDashboard.ts         # Poll /api/dashboard cada 5s
+├── lib/
+│   ├── pokemon.ts              # Datos, lógica evolución, helpers de formato
+│   ├── supabase.ts             # Clientes browser + admin
+│   ├── viem.ts                 # Cliente Base L2
+│   ├── alchemy.ts              # Fetch holders ERC-20
+│   ├── dexscreener.ts          # Precio del token
+│   └── auth.ts                 # SIWE + JWT
+├── types/
+│   └── index.ts                # TypeScript types
+├── styles/
+│   └── globals.css             # Variables CSS + reset + utilidades
+├── supabase/
+│   └── schema.sql              # DDL + RLS + función settle_vault
+└── scripts/
+    └── syncHolders.ts          # Script manual de sync
 ```
 
-The multiplier activates on the next sync run.
-
 ---
 
-## Prof Oak — AI Trainer Agent
-
-Prof Oak is an in-app AI agent powered by Claude via Bankr LLM Gateway. He reads real on-chain data through tools and answers questions about the trainer's position in character.
-
-Available tools:
-- `get_trainer_status` — balance, evolution level, score, rank, hold time
-- `get_vault_status` — time remaining, vault size, estimated payout
-- `get_leaderboard` — top N trainers by score
-- `get_token_price` — live price from DexScreener
-- `calculate_swap_needed` — ETH needed to reach a target level or rank
-- `save_strategy` — store trainer goals in Supabase
-- `get_payout_history` — all-time earnings for a wallet
-
-Oak streams responses in real time. The Bankr LLM Gateway lets token trading fees fund the compute cost automatically.
-
----
-
-## Deploying to Vercel
+## Deploy en Vercel
 
 ```bash
 vercel --prod
 ```
 
-Add all `.env.local` variables to **Vercel → Settings → Environment Variables**. The `vercel.json` is intentionally empty — no Vercel cron jobs (Hobby plan limitation). Use GitHub Actions instead.
+Variables de entorno: agrégalas en **Vercel Dashboard → Settings → Environment Variables**.
 
 ---
 
-## Vault settlement
+## Agregar tu contract address
 
-The vault settlement function (`settle_vault()`) is defined in `supabase/schema.sql`. It distributes the vault pro-rata by score when called. In production, trigger it via a Supabase Edge Function or a second GitHub Action workflow scheduled at the end of each round.
-
----
-
-## Key formulas
-
-```
-# Score
-score = balance × (seconds_held / 3600) × (evolution_level × callout_multiplier)
-
-# Share
-share_pct = score / sum(all_scores) × 100
-
-# Estimated payout
-est_payout = (share_pct / 100) × vault_total_usd × 0.80
-
-# Evolution threshold
-LV.2 = 1,000    LV.3 = 10,000    LV.4 = 100,000    LV.5 = 1,000,000
-```
+1. Deploya el token ERC-20 en Base Mainnet
+2. Copia la contract address
+3. Actualiza `NEXT_PUBLIC_PKMN_CONTRACT` en `.env.local` (y en Vercel)
+4. Actualiza el link de DexScreener en `Footer.tsx`
+5. Corre `npm run sync-holders` para poblar el leaderboard
 
 ---
 
-## Disclaimer
+## Mecánica del juego
 
-$PKMN is a meme token created for entertainment. Nothing in this project constitutes financial advice. Never invest more than you can afford to lose.
+| Concepto | Descripción |
+|---|---|
+| **Pokémon asignado** | Determinístico por wallet (hash → Bulbasaur/Charmander/Squirtle) |
+| **Evolución** | LV1→LV5 según balance: 0 / 1K / 10K / 100K / 1M tokens |
+| **Score** | `balance × (segundos_held / 3600) × multiplicador` |
+| **Multiplicador** | `nivel_evolución × 2` si tiene callout verificado |
+| **Vault** | Se llena con fees de trading cada round |
+| **Payout** | `tu_score / total_scores × vault_total` al finalizar cada round |
+| **Hold time** | Se resetea si vendes (balance baja) |
+
+---
+
+## Licencia
+
+MIT
