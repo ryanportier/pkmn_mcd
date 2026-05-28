@@ -1,0 +1,165 @@
+.section { padding: 60px 0; }
+
+.countdown {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 48px;
+  padding: 28px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+}
+
+.mainTimer {
+  border-right: 1px solid var(--border2);
+  padding-right: 28px;
+}
+
+.label {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--text-dim2);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.timer {
+  font-family: var(--pixel);
+  font-size: 36px;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 14px;
+  letter-spacing: 2px;
+  transition: color 0.3s;
+}
+.urgent { color: var(--red); animation: blink 1s infinite; }
+
+.bar {
+  height: 6px;
+  background: var(--border2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.barFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--purple), var(--red));
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.barMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim2);
+  font-family: var(--mono);
+}
+
+.stat {
+  text-align: center;
+  padding-top: 4px;
+}
+
+.statLabel {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--text-dim2);
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.statVal {
+  font-family: var(--pixel);
+  font-size: 20px;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.statSub {
+  font-size: 11px;
+  color: var(--text-dim2);
+  font-family: var(--mono);
+}
+
+/* Evolution table */
+.evoTitle {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--yellow);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.evoTable {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.evoCell {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 16px 12px;
+  text-align: center;
+  transition: var(--transition);
+}
+.evoCell:hover { border-color: rgba(255, 215, 0, 0.3); }
+.activeCell    { border-color: var(--yellow); background: rgba(255, 215, 0, 0.06); }
+
+.evoCellLv {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--yellow);
+  margin-bottom: 8px;
+}
+
+.evoCellBal {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.evoCellMult {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.evoCellBar {
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.evoCellFill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  transition: width 0.6s ease;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@media (max-width: 900px) {
+  .countdown { grid-template-columns: 1fr 1fr; }
+  .mainTimer { border-right: none; border-bottom: 1px solid var(--border2); padding-right: 0; padding-bottom: 20px; }
+  .evoTable  { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .countdown { grid-template-columns: 1fr; }
+  .evoTable  { grid-template-columns: repeat(2, 1fr); }
+  .timer     { font-size: 28px; }
+}

@@ -1,0 +1,351 @@
+.section { padding: 60px 0; }
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.online  { background: var(--green); animation: blink 1.5s infinite; }
+.offline { background: var(--red); }
+.metaText {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim2);
+}
+
+.table {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tableHead {
+  display: grid;
+  grid-template-columns: 40px 1fr 140px 100px 100px 120px 100px;
+  gap: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border2);
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--text-dim2);
+  letter-spacing: 1px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 40px 1fr 140px 100px 100px 120px 100px;
+  gap: 0;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border2);
+  align-items: center;
+  transition: background var(--transition);
+}
+.row:last-child { border-bottom: none; }
+.row:hover { background: rgba(255, 255, 255, 0.02); }
+.myRow { background: rgba(255, 215, 0, 0.04) !important; border-left: 2px solid var(--yellow); }
+
+.rankDot {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--pixel);
+  font-size: 10px;
+  background: var(--bg3);
+  color: var(--text-dim2);
+}
+.rank1 { background: rgba(255, 215, 0, 0.2);  color: var(--yellow); border: 1px solid rgba(255, 215, 0, 0.4); }
+.rank2 { background: rgba(192, 192, 192, 0.15); color: #c0c0c0; border: 1px solid rgba(192, 192, 192, 0.3); }
+.rank3 { background: rgba(205, 127, 50, 0.15);  color: #cd7f32; border: 1px solid rgba(205, 127, 50, 0.3); }
+
+.trainerCell { padding-left: 4px; }
+.trainerName {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trainerSub {
+  font-size: 11px;
+  color: var(--text-dim2);
+  margin-top: 2px;
+  font-family: var(--mono);
+}
+
+.youTag {
+  font-family: var(--pixel);
+  font-size: 7px;
+  padding: 2px 6px;
+  background: rgba(255, 215, 0, 0.2);
+  color: var(--yellow);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 2px;
+}
+
+.pkCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pkSprite {
+  width: 36px; height: 36px;
+  object-fit: contain;
+}
+.pkName {
+  font-size: 12px;
+  color: var(--text);
+}
+.pkType {
+  font-size: 10px;
+  color: var(--text-dim2);
+  margin-top: 2px;
+}
+
+.numCell {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.right { text-align: right; }
+
+.shareCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sharePct {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.shareBar {
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 80px;
+}
+.shareBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.payoutVal {
+  color: var(--green) !important;
+  font-weight: 600;
+}
+
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-dim2);
+  font-style: italic;
+  font-size: 13px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (max-width: 1000px) {
+  .tableHead,
+  .row {
+    grid-template-columns: 36px 1fr 120px 90px 90px;
+  }
+  .tableHead > span:nth-child(6),
+  .tableHead > span:nth-child(7),
+  .row > div:nth-child(6),
+  .row > div:nth-child(7) {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .tableHead,
+  .row { grid-template-columns: 30px 1fr 80px; }
+  .tableHead > span:nth-child(n+4),
+  .row > div:nth-child(n+4) { display: none; }
+}
+
+/* ── Header right ─────────────────────────────────────────────────────────── */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.myRankBadge {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--yellow);
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 6px 14px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+/* ── Pagination ───────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.pageBtn {
+  font-family: var(--pixel);
+  font-size: 9px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pageBtn:hover:not(:disabled) {
+  border-color: rgba(255, 215, 0, 0.4);
+  color: var(--yellow);
+}
+.pageBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.pageBtnActive {
+  background: rgba(255, 215, 0, 0.12) !important;
+  border-color: var(--yellow) !important;
+  color: var(--yellow) !important;
+}
+
+.ellipsis {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim2);
+  padding: 0 4px;
+}
+
+.pageInfo {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim2);
+  margin-left: 8px;
+}
+
+/* ── Wallet display ────────────────────────────────────────────────────────── */
+.wallet {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+.meWallet {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--green);
+  letter-spacing: 1px;
+}
+.calloutTag {
+  font-size: 13px;
+  line-height: 1;
+}
+.dimCell {
+  color: var(--text-dim2);
+}
+
+/* ── Header right ──────────────────────────────────────────────────────────── */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.myRankBadge {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--yellow);
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 6px 14px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+}
+
+/* ── Pagination ────────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.pageBtn {
+  font-family: var(--pixel);
+  font-size: 9px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pageBtn:hover:not(:disabled) { border-color: rgba(255,215,0,.4); color: var(--yellow); }
+.pageBtn:disabled { opacity: 0.3; cursor: default; }
+.pageBtnActive {
+  background: rgba(255,215,0,.12) !important;
+  border-color: var(--yellow) !important;
+  color: var(--yellow) !important;
+}
+.ellipsis {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim2);
+  padding: 0 4px;
+}
+.pageInfo {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim2);
+  margin-left: 8px;
+}
+
+.rowClickable {
+  cursor: pointer;
+}
+.rowClickable:hover {
+  background: rgba(255, 215, 0, 0.03) !important;
+}

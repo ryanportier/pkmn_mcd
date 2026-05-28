@@ -1,0 +1,32 @@
+{
+  "name": "pkmn-base",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "sync-holders": "tsx scripts/syncHolders.ts"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/ssr": "^0.5.0",
+    "viem": "^2.21.0",
+    "siwe": "^2.3.2",
+    "jose": "^5.9.0",
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0"
+  }
+}

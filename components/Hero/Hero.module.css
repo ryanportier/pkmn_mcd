@@ -1,0 +1,174 @@
+.hero {
+  padding: 80px 0 60px;
+  text-align: center;
+  position: relative;
+}
+
+.eyebrow {
+  display: table;
+  margin: 0 auto 20px;
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--yellow);
+  letter-spacing: 2px;
+  padding: 6px 16px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 2px;
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.h1 {
+  font-family: var(--pixel);
+  font-size: clamp(20px, 4vw, 42px);
+  line-height: 1.5;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+  color: var(--text);
+  text-shadow: 0 0 40px rgba(78, 154, 241, 0.3);
+}
+
+.red   { color: var(--red); }
+.green { color: var(--green); }
+
+/* Pokeball letter inline */
+.pokeball {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 50%;
+  background: linear-gradient(to bottom, var(--red) 50%, #f0f0f0 50%);
+  border: 0.05em solid #d0d0d0;
+  position: relative;
+  vertical-align: -0.18em;
+  margin: 0 0.05em;
+  box-shadow: 0 0 0.5em rgba(78, 154, 241, 0.8), 0 0 1.4em rgba(78, 154, 241, 0.35);
+  overflow: hidden;
+}
+.pokeball::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 0.04em);
+  left: 0; right: 0;
+  height: 0.08em;
+  background: #1a1a2e;
+}
+.pokeball::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.28em;
+  height: 0.28em;
+  border-radius: 50%;
+  background: #f0f0f0;
+  border: 0.055em solid #1a1a2e;
+  z-index: 1;
+}
+
+.sub {
+  font-size: 15px;
+  color: var(--text-dim);
+  max-width: 520px;
+  margin: 0 auto 24px;
+  line-height: 1.7;
+}
+
+.ticker {
+  font-family: var(--mono);
+  color: var(--yellow);
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: inherit;
+}
+
+.magicPhrase {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(162, 155, 254, 0.08);
+  border: 1px solid rgba(162, 155, 254, 0.25);
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+
+.magicLabel {
+  font-family: var(--pixel);
+  font-size: 7px;
+  color: var(--text-dim2);
+  letter-spacing: 1px;
+}
+
+.magicValue {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--purple);
+}
+
+.caStrip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 28px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.caStrip:hover {
+  border-color: rgba(78, 154, 241, 0.5);
+}
+
+.caLabel {
+  font-family: var(--pixel);
+  font-size: 7px;
+  color: var(--text-dim2);
+  letter-spacing: 2px;
+}
+
+.caVal {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.caCopy {
+  background: rgba(78, 154, 241, 0.15);
+  border: 1px solid rgba(78, 154, 241, 0.35);
+  border-radius: 3px;
+  color: var(--blue);
+  font-size: 10px;
+  font-family: var(--pixel);
+  padding: 4px 10px;
+  transition: var(--transition);
+}
+.caCopy:hover { background: rgba(78, 154, 241, 0.28); }
+
+.btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font-size: 10px !important;
+  padding: 14px 28px !important;
+}
+
+.logo_inline {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  object-fit: contain;
+  border-radius: 50%;
+  vertical-align: -0.18em;
+  margin: 0 0.05em;
+  box-shadow: 0 0 0.5em rgba(78,154,241,.8), 0 0 1.4em rgba(78,154,241,.35);
+}
