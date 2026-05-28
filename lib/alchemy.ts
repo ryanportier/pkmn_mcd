@@ -99,28 +99,41 @@ export async function getEthBalance(wallet: string): Promise<string> {
   return result ?? "0x0";
 }
 
-// ─── Get ERC-20 token balance + ETH balance of the vault/fees wallet ─────────
+// WETH contract on Base (same address as on all OP-stack chains)
+const WETH_BASE = "0x4200000000000000000000000000000000000006";
+
+// ─── Get ERC-20 token balance + ETH + WETH balance of the vault/fees wallet ──
 export async function getVaultWalletInfo(
   vaultWallet: string,
   tokenContract: string
 ): Promise<{
   eth_balance_wei: string;
   eth_balance: number;
+  weth_balance: number;
+  total_eth_value: number;  // ETH native + WETH combined
   token_balance_raw: string;
   token_balance: number;
 }> {
-  const [ethRaw, tokenRaw] = await Promise.all([
+  const [ethRaw, wethRaw, tokenRaw] = await Promise.all([
     getEthBalance(vaultWallet),
+    getWalletTokenBalance(vaultWallet, WETH_BASE),
     getWalletTokenBalance(vaultWallet, tokenContract),
   ]);
 
   const ethWei   = BigInt(ethRaw);
+  const wethWei  = BigInt(wethRaw);
   const tokenWei = BigInt(tokenRaw);
+
+  const eth_balance  = Number(ethWei)   / 1e18;
+  const weth_balance = Number(wethWei)  / 1e18;
+  const token_balance = Number(tokenWei) / 1e18;
 
   return {
     eth_balance_wei:  ethRaw,
-    eth_balance:      Number(ethWei)   / 1e18,
+    eth_balance,
+    weth_balance,
+    total_eth_value: eth_balance + weth_balance,  // combine both
     token_balance_raw: tokenRaw,
-    token_balance:    Number(tokenWei) / 1e18,
+    token_balance,
   };
 }
