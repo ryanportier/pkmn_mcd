@@ -32,13 +32,17 @@ export async function POST(req: NextRequest) {
   if (VAULT_WALLET && VAULT_WALLET !== "0xTU_WALLET_FEES") {
     try {
       const info = await getVaultWalletInfo(VAULT_WALLET, CONTRACT);
-      vaultEth = info.eth_balance;
-      const priceRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${CONTRACT}`)
+      vaultEth = info.total_eth_value; // ETH nativo + WETH combinados
+
+      // Get ETH price in USD from WETH/USDC pair on Base via DexScreener
+      const WETH = "0x4200000000000000000000000000000000000006";
+      const ethPriceRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${WETH}`)
         .then((r) => r.json()).catch(() => null);
-      const basePair = (priceRes?.pairs ?? [])
+      const ethPair = (ethPriceRes?.pairs ?? [])
         .filter((p: any) => p.chainId === "base")
         .sort((a: any, b: any) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
-      const ethPriceUsd = basePair ? parseFloat(basePair?.priceNative ?? "0") || 3500 : 3500;
+      const ethPriceUsd = ethPair ? parseFloat(ethPair?.priceUsd ?? "0") || 3500 : 3500;
+
       vaultUsd = vaultEth * ethPriceUsd;
       await supabase.from("vault_rounds")
         .update({ total_eth: vaultEth, total_usd: vaultUsd })
