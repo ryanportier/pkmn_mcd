@@ -1,0 +1,22 @@
+name: Renew Vault Round
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # cada hora en punto
+  workflow_dispatch:        # también manual desde GitHub
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger vault renewal
+        run: |
+          STATUS=$(curl -s -o /tmp/vault.json -w "%{http_code}" \
+            "${{ secrets.APP_URL }}/api/vault")
+          BODY=$(cat /tmp/vault.json)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Vault OK — $BODY"
+          else
+            echo "❌ Vault failed (HTTP $STATUS) — $BODY"
+            exit 1
+          fi
