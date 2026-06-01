@@ -14,7 +14,7 @@ export default function Footer() {
           <a href="https://basescan.org" target="_blank" rel="noopener noreferrer">
             BANKR ↗
           </a>
-          <a href="https://x.com/pokemon_mcd" target="_blank" rel="noopener noreferrer">
+          <a href="https://x.com/pokemon_mcp" target="_blank" rel="noopener noreferrer">
             TWITTER ↗
           </a>
           <a href="https://t.me" target="_blank" rel="noopener noreferrer">
