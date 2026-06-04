@@ -46,7 +46,7 @@ export default function Hero({ magicPhrase, contract, shiftsCompleted }: HeroPro
         </h1>
 
         <p className={styles.sub}>
-          Hold <code className={styles.ticker}>$PKMN</code> on Base, evolve your
+          Hold <code className={styles.ticker}>$PKMN</code> on Ethereum, evolve your
           trainer Pokémon, and earn ETH from the vault every round.
           The longer you hold, the stronger you become.
         </p>

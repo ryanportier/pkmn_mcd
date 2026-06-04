@@ -13,7 +13,7 @@ interface WalletContextValue {
   wallet: string | null;
   isConnected: boolean;
   isConnecting: boolean;
-  isSigned: boolean;         // true solo si completó SIWE
+  isSigned: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
   error: string | null;
@@ -30,20 +30,17 @@ const WalletContext = createContext<WalletContextValue>({
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [wallet, setWallet] = useState<string | null>(null);
-  const [isSigned, setIsSigned] = useState(false);
+  const [wallet, setWallet]         = useState<string | null>(null);
+  const [isSigned, setIsSigned]     = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
 
-  // Restore wallet from localStorage on mount — NO automatic popup
   useEffect(() => {
     const saved = localStorage.getItem("pkmn_wallet");
     if (saved) {
       setWallet(saved);
       setIsSigned(true);
     }
-    // Removed: eth_accounts check — that was triggering Phantom/MetaMask popup
-    // Users must explicitly click CONNECT
   }, []);
 
   const connect = useCallback(async () => {
@@ -52,57 +49,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     try {
       const ethereum = (window as any).ethereum;
-      if (!ethereum) {
-        throw new Error("No wallet found. Install MetaMask.");
-      }
+      if (!ethereum) throw new Error("No wallet found. Install MetaMask.");
 
-      // Step 1 — Request accounts (shows MetaMask popup)
       const accounts: string[] = await ethereum.request({
         method: "eth_requestAccounts",
       });
       const address = accounts[0].toLowerCase();
 
-      // Step 2 — Switch to Base chain
+      // Switch to Ethereum mainnet (chainId 1 = 0x1)
       try {
         await ethereum.request({
           method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x2105" }],
+          params: [{ chainId: "0x1" }],
         });
       } catch (switchErr: any) {
-        if (switchErr.code === 4902) {
-          await ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: "0x2105",
-              chainName: "Base",
-              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-              rpcUrls: ["https://mainnet.base.org"],
-              blockExplorerUrls: ["https://basescan.org"],
-            }],
-          });
-        }
+        // 0x1 is always available in MetaMask — no need to addEthereumChain
+        if (switchErr.code !== 4902) throw switchErr;
       }
 
-      // Step 3 — Set wallet immediately so Oak can work right away
       setWallet(address);
-      localStorage.setItem("pkmn_wallet", address); // save immediately, no SIWE needed
+      localStorage.setItem("pkmn_wallet", address);
 
-      // Step 4 — Try SIWE in background (optional, for protected routes)
+      // SIWE in background
       try {
         const nonceRes = await fetch("/api/auth/nonce");
         const { nonce } = await nonceRes.json();
 
-        const domain = window.location.host;
-        const uri = window.location.origin;
+        const domain  = window.location.host;
+        const uri     = window.location.origin;
         const message = [
           `${domain} wants you to sign in with your Ethereum account:`,
           address,
           "",
-          "Sign in to $PKMN on Base. Gotta catch em all.",
+          "Sign in to $PKMN. Gotta catch em all.",
           "",
           `URI: ${uri}`,
           "Version: 1",
-          "Chain ID: 8453",
+          "Chain ID: 1",
           `Nonce: ${nonce}`,
           `Issued At: ${new Date().toISOString()}`,
         ].join("\n");
@@ -123,8 +106,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("pkmn_wallet", address);
         }
       } catch {
-        // SIWE failed or user rejected — wallet still connected for Oak
-        // isSigned stays false but wallet is set
+        // SIWE optional — wallet still connected
       }
 
     } catch (e: any) {
@@ -145,9 +127,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   return (
     <WalletContext.Provider value={{
       wallet,
-      isConnected: !!wallet,   // true apenas conecta MetaMask
+      isConnected: !!wallet,
       isConnecting,
-      isSigned,                // true solo si firmó SIWE
+      isSigned,
       connect,
       disconnect,
       error,

@@ -2,8 +2,8 @@ import { SiweMessage } from "siwe";
 import { SignJWT, jwtVerify } from "jose";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
-const JWT_ISSUER = "pkmn-base";
-const JWT_AUDIENCE = "pkmn-base-app";
+const JWT_ISSUER = "pkmn-eth";
+const JWT_AUDIENCE = "pkmn-eth-app";
 
 // ─── Create a SIWE message for the client to sign ────────────────────────────
 export function createSiweMessage(
@@ -16,7 +16,7 @@ export function createSiweMessage(
   const message = new SiweMessage({
     domain,
     address,
-    statement: "Sign in to $PKMN on Base. Gotta catch em all.",
+    statement: "Sign in to $PKMN . Gotta catch em all.",
     uri,
     version: "1",
     chainId,

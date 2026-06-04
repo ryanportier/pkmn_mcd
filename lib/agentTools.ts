@@ -163,9 +163,9 @@ export const AGENT_TOOLS = [
     },
   },
   {
-    name: "open_base_mcp_swap",
+    name: "open_uniswap_swap",
     description:
-      "Generate a Base MCP swap link so the trainer can buy more $PKMN to evolve their Pokémon. Use this when the trainer wants to level up or asks how to buy more tokens.",
+      "Generate a Uniswap swap link so the trainer can buy more $PKMN to evolve their Pokémon. Use this when the trainer wants to level up or asks how to buy more tokens.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -337,7 +337,7 @@ export async function executeTool(
         volume_24h_usd: price.volume24hUsd,
         liquidity_usd: price.liquidity,
         dexscreener_url: price.pairAddress
-          ? `https://dexscreener.com/base/${price.pairAddress}`
+          ? `https://dexscreener.com/ethereum/${price.pairAddress}`
           : null,
       };
     }
@@ -452,7 +452,7 @@ export async function executeTool(
       const multiplier = type === "own_post" ? 4 : 2;
       const text = type === "magic_phrase"
         ? `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`
-        : `🔥 Holding $PKMN on Base — Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Base`;
+        : `🔥 Holding $PKMN Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Ethereum`;
       const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
       return {
         tweet_url: url,
@@ -485,18 +485,16 @@ export async function executeTool(
       };
     }
 
-    case "open_base_mcp_swap": {
+    case "open_uniswap_swap": {
       const CONTRACT_ADDR = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
-      const ethAmt  = Number(input.eth_amount ?? 0.01);
-      const reason  = (input.reason as string) ?? "evolve your Pokémon";
-      const uniUrl  = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}&chain=base`;
-      const baseUrl = `https://app.base.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}`;
+      const ethAmt = Number(input.eth_amount ?? 0.01);
+      const reason = (input.reason as string) ?? "evolve your Pokémon";
+      const uniUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}&chain=ethereum`;
       return {
         eth_amount: ethAmt,
         reason,
         uniswap_url: uniUrl,
-        base_app_url: baseUrl,
-        instructions: `To ${reason}:\n👉 Swap on Uniswap: ${uniUrl}\n👉 Or Base App: ${baseUrl}\n\nYour Pokémon will evolve in the next sync (~5 min).`,
+        instructions: `To ${reason}:\n👉 Swap on Uniswap: ${uniUrl}\n\nYour Pokémon will evolve in the next sync (~5 min).`,
       };
     }
 
@@ -527,7 +525,7 @@ export async function executeNewTool(
         text = `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`;
         multiplier = 2;
       } else {
-        text = `🔥 Holding $PKMN on Base — Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Base`;
+        text = `🔥 Holding $PKMN Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Ethereum`;
         multiplier = 4;
       }
 
@@ -576,30 +574,23 @@ export async function executeNewTool(
         current_round_estimate_usd: holder?.estimated_payout_usd?.toFixed(2) ?? "0.00",
         current_share_pct: holder?.share_pct?.toFixed(2) ?? "0.00",
         message: totalUnclaimedUsd > 0
-          ? `You have $${totalUnclaimedUsd.toFixed(2)} in unclaimed payouts! Vault claim via Base MCP coming soon.`
+          ? `You have $${totalUnclaimedUsd.toFixed(2)} in unclaimed payouts! Vault claim coming soon.`
           : "No unclaimed payouts yet. Keep holding to earn from the next vault round!",
       };
     }
 
-    case "open_base_mcp_swap": {
+    case "open_uniswap_swap": {
       const wallet    = (input.wallet as string).toLowerCase();
       const ethAmount = Number(input.eth_amount ?? 0.01);
       const reason    = (input.reason as string) ?? "evolve your Pokémon";
-
-      // Base MCP swap intent — opens Base App for user to approve
-      const swapUrl = `https://app.base.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}`;
-
-      // Also build a Uniswap link as fallback
-      const uniswapUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}&chain=base`;
-
+      const CONTRACT  = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
+      const uniswapUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}&chain=ethereum`;
       return {
         wallet,
         eth_amount: ethAmount,
         reason,
-        base_app_url: swapUrl,
         uniswap_url: uniswapUrl,
-        instructions: `To ${reason}, swap ${ethAmount} ETH for $PKMN:\n1. Click the Base App link\n2. Review and approve the swap\n3. Your Pokémon will evolve after the next sync (every 5 min)`,
-        note: "Base MCP direct swap integration coming soon — for now use Base App or Uniswap.",
+        instructions: `To ${reason}, swap ${ethAmount} ETH for $PKMN:\n1. Click the Uniswap link\n2. Review and approve the swap\n3. Your Pokémon will evolve after the next sync (every 5 min)`,
       };
     }
 

@@ -34,7 +34,7 @@ export default function PriceBar({
   const isUp = priceChange24h >= 0;
   const dexLink =
     contract !== "0x0000000000000000000000000000000000000000"
-      ? `https://dexscreener.com/base/${contract}`
+      ? `https://dexscreener.com/ethereum/${contract}`
       : "#";
 
   return (
@@ -61,7 +61,7 @@ export default function PriceBar({
         <div className={styles.item}>
           <span className={styles.label}>CHAIN</span>
           <span className={styles.value} style={{ color: "var(--blue)" }}>
-            BASE L2
+            ETHEREUM
           </span>
         </div>
         <a

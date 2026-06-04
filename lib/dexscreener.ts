@@ -40,7 +40,7 @@ export async function getTokenPrice(
 
     // Prefer the Base chain pair with highest liquidity
     const basePairs = pairs
-      .filter((p) => p.chainId === "base")
+      .filter((p) => p.chainId === "ethereum")
       .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0));
 
     const pair = basePairs[0];

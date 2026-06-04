@@ -137,7 +137,7 @@ export default function RegisterTrainer({ magicPhrase }: Props) {
                   spellCheck={false}
                 />
                 <div className={styles.fieldHint}>
-                  The wallet that holds your $PKMN tokens on Base
+                  The wallet that holds your $PKMN tokens on Ethereum
                 </div>
               </div>
 
@@ -290,7 +290,7 @@ export default function RegisterTrainer({ magicPhrase }: Props) {
                 <div className={styles.instructBox}>
                   <div className={styles.instructStep}>1. Click to post on X (pre-filled):</div>
                   <a
-                    href={`https://x.com/intent/tweet?text=${encodeURIComponent(`🔥 Holding $PKMN on Base — Gotta catch em all! 🎮\n\nCA: ${process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? ""}\n\n#PKMN #Base`)}`}
+                    href={`https://x.com/intent/tweet?text=${encodeURIComponent(`🔥 Holding $PKMN Gotta catch em all! 🎮\n\nCA: ${process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? ""}\n\n#PKMN #Ethereum`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.tweetIntentBtn}
@@ -300,7 +300,7 @@ export default function RegisterTrainer({ magicPhrase }: Props) {
                   <div className={styles.previewTweet}>
                     <span className={styles.previewLabel}>PREVIEW:</span>
                     <span className={styles.previewText}>
-                      🔥 Holding $PKMN on Base… CA: {(process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "").slice(0,10)}…
+                      🔥 Holding $PKMN on Ethereum… CA: {(process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "").slice(0,10)}…
                     </span>
                   </div>
                   <div className={styles.instructStep}>2. After tweeting, paste the tweet URL:</div>

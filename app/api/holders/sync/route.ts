@@ -35,11 +35,11 @@ export async function POST(req: NextRequest) {
       vaultEth = info.total_eth_value; // ETH nativo + WETH combinados
 
       // Get ETH price in USD from WETH/USDC pair on Base via DexScreener
-      const WETH = "0x4200000000000000000000000000000000000006";
+      const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
       const ethPriceRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${WETH}`)
         .then((r) => r.json()).catch(() => null);
       const ethPair = (ethPriceRes?.pairs ?? [])
-        .filter((p: any) => p.chainId === "base")
+        .filter((p: any) => p.chainId === "ethereum")
         .sort((a: any, b: any) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
       const ethPriceUsd = ethPair ? parseFloat(ethPair?.priceUsd ?? "0") || 3500 : 3500;
 

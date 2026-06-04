@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "No $PKMN balance found",
-          message: "This wallet doesn't hold any $PKMN tokens on Base. Buy some first!",
+          message: "This wallet doesn't hold any $PKMN tokens. Buy some first!",
         },
         { status: 400 }
       );

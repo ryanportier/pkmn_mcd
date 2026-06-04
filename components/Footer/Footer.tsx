@@ -11,11 +11,11 @@ export default function Footer() {
         </div>
 
         <div className={styles.links}>
-          <a href="https://basescan.org" target="_blank" rel="noopener noreferrer">
-            BANKR ↗
+          <a href="https://etherscan.io" target="_blank" rel="noopener noreferrer">
+            HOOK ↗
           </a>
-          <a href="https://x.com/pokemon_mcp" target="_blank" rel="noopener noreferrer">
-            TWITTER ↗
+          <a href="pokemon_mcp_eth" target="_blank" rel="noopener noreferrer">
+            x ↗
           </a>
           <a href="https://t.me" target="_blank" rel="noopener noreferrer">
             CONTRACT ↗
@@ -24,7 +24,7 @@ export default function Footer() {
 
         <div className={styles.copy}>
           © 2026 $PKMN · Built on{" "}
-          <span style={{ color: "var(--blue)" }}>Base</span>
+          <span style={{ color: "var(--blue)" }}>Ethereum</span>
         </div>
       </div>
     </footer>

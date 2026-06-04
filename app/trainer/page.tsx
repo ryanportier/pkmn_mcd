@@ -118,7 +118,7 @@ export default function TrainerPage() {
                     <div className={styles.pokeball} />
                     <p>No $PKMN held yet</p>
                     <p style={{ fontSize: 12, color: "var(--text-dim2)", marginTop: 8 }}>
-                      Buy $PKMN on Base to get your Pokémon
+                      Buy $PKMN on Ethereum to get your Pokémon
                     </p>
                   </div>
                 )}

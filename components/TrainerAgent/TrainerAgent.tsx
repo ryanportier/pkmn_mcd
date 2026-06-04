@@ -20,7 +20,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_payout_history:     "Reviewing your earnings…",
   open_tweet_intent:      "Generating tweet link…",
   check_claimable_payout: "Checking your claimable rewards…",
-  open_base_mcp_swap:     "Generating swap link…",
+  open_uniswap_swap:     "Generating Uniswap link…",
 };
 
 const SUGGESTIONS = [
@@ -93,7 +93,7 @@ export default function TrainerAgent() {
             <div>
               <div className={styles.headerTitle}>PROFESSOR OAK</div>
               <div className={styles.headerSub}>
-                AI Trainer Agent · Powered by BankrBot
+                AI Trainer Agent
               </div>
             </div>
           </div>
@@ -242,9 +242,9 @@ export default function TrainerAgent() {
                             🔄 SWAP ON UNISWAP
                           </a>
                         )}
-                        {(msg.tool_result as any).base_app_url && (
+                        {(msg.tool_result as any).uniswap_url && (
                           <a
-                            href={(msg.tool_result as any).base_app_url}
+                            href={(msg.tool_result as any).uniswap_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={styles.actionBtn}

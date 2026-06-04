@@ -1,14 +1,14 @@
-const ALCHEMY_BASE_URL = `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
+// Ethereum Mainnet — migrated from Base
+const ALCHEMY_ETH_URL = `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
 
-// ERC-20 Transfer event topic
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-// Base produces ~2 blocks/second → blocks per period:
-const BLOCKS_PER_HOUR = 7_200;
-const BLOCKS_PER_DAY  = 172_800;
+// Ethereum ~12s block time
+const BLOCKS_PER_HOUR = 300;
+const BLOCKS_PER_DAY  = 7_200;
 
 async function rpc(method: string, params: unknown[]) {
-  const res = await fetch(ALCHEMY_BASE_URL, {
+  const res = await fetch(ALCHEMY_ETH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -19,32 +19,29 @@ async function rpc(method: string, params: unknown[]) {
   return data.result;
 }
 
-// ─── Get all holders by scanning Transfer events ──────────────────────────────
-// lookback: "1h" | "1d" | "7d" (default: "1d")
 export async function getAllHolders(
   contractAddress: string,
   lookback: "1h" | "1d" | "7d" = "1d"
 ): Promise<{ address: string; rawBalance: string }[]> {
-
   const lookbackBlocks =
     lookback === "1h" ? BLOCKS_PER_HOUR :
     lookback === "1d" ? BLOCKS_PER_DAY  :
     BLOCKS_PER_DAY * 7;
 
-  console.log(`📡 Scanning Transfer logs (last ${lookback})...`);
+  console.log(`📡 Scanning Transfer logs on Ethereum mainnet (last ${lookback})...`);
 
   const latestHex: string = await rpc("eth_blockNumber", []);
-  const latest = parseInt(latestHex, 16);
+  const latest    = parseInt(latestHex, 16);
   const fromBlock = Math.max(0, latest - lookbackBlocks);
 
-  const CHUNK = 10_000;
+  const CHUNK = 2_000; // Ethereum nodes prefer smaller chunks than Base
   const addressSet = new Set<string>();
 
   for (let start = fromBlock; start < latest; start += CHUNK) {
     const end = Math.min(start + CHUNK - 1, latest);
     const logs = await rpc("eth_getLogs", [{
       address: contractAddress,
-      topics: [TRANSFER_TOPIC],
+      topics:  [TRANSFER_TOPIC],
       fromBlock: `0x${start.toString(16)}`,
       toBlock:   `0x${end.toString(16)}`,
     }]);
@@ -61,13 +58,12 @@ export async function getAllHolders(
 
   console.log(`📋 ${addressSet.size} unique addresses found, checking balances...`);
 
-  // Check current balance of each address in parallel batches
   const addresses = Array.from(addressSet);
   const holders: { address: string; rawBalance: string }[] = [];
   const BATCH = 50;
 
   for (let i = 0; i < addresses.length; i += BATCH) {
-    const batch = addresses.slice(i, i + BATCH);
+    const batch    = addresses.slice(i, i + BATCH);
     const balances = await Promise.all(
       batch.map((addr) => getWalletTokenBalance(addr, contractAddress))
     );
@@ -82,7 +78,6 @@ export async function getAllHolders(
   return holders;
 }
 
-// ─── Get single wallet token balance via eth_call → balanceOf() ───────────────
 export async function getWalletTokenBalance(
   wallet: string,
   contractAddress: string
@@ -93,16 +88,14 @@ export async function getWalletTokenBalance(
   return result ?? "0x0";
 }
 
-// ─── Get ETH balance of a wallet (for vault/fees tracking) ───────────────────
 export async function getEthBalance(wallet: string): Promise<string> {
   const result = await rpc("eth_getBalance", [wallet, "latest"]);
   return result ?? "0x0";
 }
 
-// WETH contract on Base (same address as on all OP-stack chains)
-const WETH_BASE = "0x4200000000000000000000000000000000000006";
+// WETH on Ethereum mainnet
+const WETH_MAINNET = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
-// ─── Get ERC-20 token balance + ETH + WETH balance of the vault/fees wallet ──
 export async function getVaultWalletInfo(
   vaultWallet: string,
   tokenContract: string
@@ -110,29 +103,25 @@ export async function getVaultWalletInfo(
   eth_balance_wei: string;
   eth_balance: number;
   weth_balance: number;
-  total_eth_value: number;  // ETH native + WETH combined
+  total_eth_value: number;
   token_balance_raw: string;
   token_balance: number;
 }> {
   const [ethRaw, wethRaw, tokenRaw] = await Promise.all([
     getEthBalance(vaultWallet),
-    getWalletTokenBalance(vaultWallet, WETH_BASE),
+    getWalletTokenBalance(vaultWallet, WETH_MAINNET),
     getWalletTokenBalance(vaultWallet, tokenContract),
   ]);
 
-  const ethWei   = BigInt(ethRaw);
-  const wethWei  = BigInt(wethRaw);
-  const tokenWei = BigInt(tokenRaw);
-
-  const eth_balance  = Number(ethWei)   / 1e18;
-  const weth_balance = Number(wethWei)  / 1e18;
-  const token_balance = Number(tokenWei) / 1e18;
+  const eth_balance   = Number(BigInt(ethRaw))   / 1e18;
+  const weth_balance  = Number(BigInt(wethRaw))  / 1e18;
+  const token_balance = Number(BigInt(tokenRaw)) / 1e18;
 
   return {
     eth_balance_wei:  ethRaw,
     eth_balance,
     weth_balance,
-    total_eth_value: eth_balance + weth_balance,  // combine both
+    total_eth_value:  eth_balance + weth_balance,
     token_balance_raw: tokenRaw,
     token_balance,
   };
