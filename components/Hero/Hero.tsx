@@ -35,7 +35,7 @@ export default function Hero({ magicPhrase, contract, shiftsCompleted }: HeroPro
     <section className={styles.hero}>
       <div className="container">
         <div className={styles.eyebrow}>
-          ⚡ NOW LIVE ON BASE · ROUND #{shiftsCompleted + 1}
+          ⚡ NOW LIVE ON ETH · ROUND #{shiftsCompleted + 1}
         </div>
 
         <h1 className={styles.h1}>
