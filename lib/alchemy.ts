@@ -1,127 +1,128 @@
-// Ethereum Mainnet — migrated from Base
-const ALCHEMY_ETH_URL = `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
+// ─── Helius Solana RPC ────────────────────────────────────────────────────────
+// Uses Helius DAS API for token accounts (free tier: 1M req/month)
 
-const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const HELIUS_URL = `https://mainnet.helius-rpc.com/?api-key=${process.env.ALCHEMY_API_KEY}`;
+const DECIMALS   = 9;
 
-// Ethereum ~12s block time
-const BLOCKS_PER_HOUR = 300;
-const BLOCKS_PER_DAY  = 7_200;
-
-async function rpc(method: string, params: unknown[]) {
-  const res = await fetch(ALCHEMY_ETH_URL, {
+async function rpc(method: string, params: unknown) {
+  const res = await fetch(HELIUS_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
-  if (!res.ok) throw new Error(`Alchemy RPC error: ${res.status}`);
+  if (!res.ok) throw new Error(`Helius RPC error: ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(`RPC error: ${data.error.message}`);
   return data.result;
 }
 
+// ─── Get all SPL token holders via Helius getTokenAccounts ───────────────────
 export async function getAllHolders(
-  contractAddress: string,
-  lookback: "1h" | "1d" | "7d" = "1d"
+  mintAddress: string
 ): Promise<{ address: string; rawBalance: string }[]> {
-  const lookbackBlocks =
-    lookback === "1h" ? BLOCKS_PER_HOUR :
-    lookback === "1d" ? BLOCKS_PER_DAY  :
-    BLOCKS_PER_DAY * 7;
+  console.log(`📡 Fetching SPL token holders for mint: ${mintAddress}`);
 
-  console.log(`📡 Scanning Transfer logs on Ethereum mainnet (last ${lookback})...`);
-
-  const latestHex: string = await rpc("eth_blockNumber", []);
-  const latest    = parseInt(latestHex, 16);
-  const fromBlock = Math.max(0, latest - lookbackBlocks);
-
-  const CHUNK = 2_000; // Ethereum nodes prefer smaller chunks than Base
-  const addressSet = new Set<string>();
-
-  for (let start = fromBlock; start < latest; start += CHUNK) {
-    const end = Math.min(start + CHUNK - 1, latest);
-    const logs = await rpc("eth_getLogs", [{
-      address: contractAddress,
-      topics:  [TRANSFER_TOPIC],
-      fromBlock: `0x${start.toString(16)}`,
-      toBlock:   `0x${end.toString(16)}`,
-    }]);
-
-    for (const log of logs) {
-      if (log.topics?.[2]) {
-        const addr = "0x" + log.topics[2].slice(26).toLowerCase();
-        if (addr !== "0x0000000000000000000000000000000000000000") {
-          addressSet.add(addr);
-        }
-      }
-    }
-  }
-
-  console.log(`📋 ${addressSet.size} unique addresses found, checking balances...`);
-
-  const addresses = Array.from(addressSet);
   const holders: { address: string; rawBalance: string }[] = [];
-  const BATCH = 50;
+  let cursor: string | undefined = undefined;
 
-  for (let i = 0; i < addresses.length; i += BATCH) {
-    const batch    = addresses.slice(i, i + BATCH);
-    const balances = await Promise.all(
-      batch.map((addr) => getWalletTokenBalance(addr, contractAddress))
-    );
-    for (let j = 0; j < batch.length; j++) {
-      if (BigInt(balances[j]) > BigInt(0)) {
-        holders.push({ address: batch[j], rawBalance: balances[j] });
+  do {
+    const params: Record<string, unknown> = {
+      mint: mintAddress,
+      limit: 1000,
+      displayOptions: { showZeroBalance: false },
+    };
+    if (cursor) params.cursor = cursor;
+
+    const result = await rpc("getTokenAccounts", params);
+    const accounts: any[] = result?.token_accounts ?? [];
+
+    for (const acc of accounts) {
+      const owner  = acc.owner as string;
+      const amount = acc.amount ?? "0";
+      if (BigInt(amount) > BigInt(0)) {
+        holders.push({ address: owner, rawBalance: amount.toString() });
       }
     }
+
+    cursor = result?.cursor ?? undefined;
+  } while (cursor);
+
+  // Deduplicate by owner (sum multiple ATAs)
+  const dedupMap = new Map<string, bigint>();
+  for (const h of holders) {
+    const prev = dedupMap.get(h.address) ?? BigInt(0);
+    dedupMap.set(h.address, prev + BigInt(h.rawBalance));
   }
 
-  console.log(`✅ ${holders.length} active holders`);
-  return holders;
+  const result = Array.from(dedupMap.entries()).map(([address, bal]) => ({
+    address,
+    rawBalance: bal.toString(),
+  }));
+
+  console.log(`✅ ${result.length} active holders`);
+  return result;
 }
 
+// ─── Get SPL token balance for a single wallet ────────────────────────────────
 export async function getWalletTokenBalance(
-  wallet: string,
-  contractAddress: string
+  walletAddress: string,
+  mintAddress: string
 ): Promise<string> {
-  const data =
-    "0x70a08231" + wallet.toLowerCase().replace("0x", "").padStart(64, "0");
-  const result = await rpc("eth_call", [{ to: contractAddress, data }, "latest"]);
-  return result ?? "0x0";
+  try {
+    const result = await rpc("getTokenAccountsByOwner", [
+      walletAddress,
+      { mint: mintAddress },
+      { encoding: "jsonParsed" },
+    ]);
+
+    const accounts: any[] = result?.value ?? [];
+    if (accounts.length === 0) return "0";
+
+    let total = BigInt(0);
+    for (const acc of accounts) {
+      const amount =
+        acc.account?.data?.parsed?.info?.tokenAmount?.amount ?? "0";
+      total += BigInt(amount);
+    }
+    return total.toString();
+  } catch {
+    return "0";
+  }
 }
 
-export async function getEthBalance(wallet: string): Promise<string> {
-  const result = await rpc("eth_getBalance", [wallet, "latest"]);
-  return result ?? "0x0";
+// ─── Get SOL balance of a wallet ──────────────────────────────────────────────
+export async function getSolBalance(walletAddress: string): Promise<string> {
+  try {
+    const result = await rpc("getBalance", [walletAddress]);
+    return (result?.value ?? 0).toString();
+  } catch {
+    return "0";
+  }
 }
 
-// WETH on Ethereum mainnet
-const WETH_MAINNET = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-
+// ─── Get vault wallet info ────────────────────────────────────────────────────
 export async function getVaultWalletInfo(
   vaultWallet: string,
-  tokenContract: string
+  mintAddress: string
 ): Promise<{
-  eth_balance_wei: string;
-  eth_balance: number;
-  weth_balance: number;
-  total_eth_value: number;
+  sol_balance_lamports: string;
+  sol_balance: number;
+  total_sol_value: number;
   token_balance_raw: string;
   token_balance: number;
 }> {
-  const [ethRaw, wethRaw, tokenRaw] = await Promise.all([
-    getEthBalance(vaultWallet),
-    getWalletTokenBalance(vaultWallet, WETH_MAINNET),
-    getWalletTokenBalance(vaultWallet, tokenContract),
+  const [solLamports, tokenRaw] = await Promise.all([
+    getSolBalance(vaultWallet),
+    getWalletTokenBalance(vaultWallet, mintAddress),
   ]);
 
-  const eth_balance   = Number(BigInt(ethRaw))   / 1e18;
-  const weth_balance  = Number(BigInt(wethRaw))  / 1e18;
-  const token_balance = Number(BigInt(tokenRaw)) / 1e18;
+  const sol_balance   = Number(solLamports) / 1e9;
+  const token_balance = Number(tokenRaw) / Math.pow(10, DECIMALS);
 
   return {
-    eth_balance_wei:  ethRaw,
-    eth_balance,
-    weth_balance,
-    total_eth_value:  eth_balance + weth_balance,
+    sol_balance_lamports: solLamports,
+    sol_balance,
+    total_sol_value: sol_balance,
     token_balance_raw: tokenRaw,
     token_balance,
   };

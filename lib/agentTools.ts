@@ -11,7 +11,8 @@ import {
   fmtSeconds,
 } from "@/lib/pokemon";
 
-const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT!;
+const MINT     = process.env.NEXT_PUBLIC_PKMN_MINT!;
+const DECIMALS = 9;
 
 // ─── Tool definitions for Claude API ─────────────────────────────────────────
 export const AGENT_TOOLS = [
@@ -24,7 +25,7 @@ export const AGENT_TOOLS = [
       properties: {
         wallet: {
           type: "string",
-          description: "The trainer's wallet address (0x...)",
+          description: "The trainer's Solana wallet address (base58 pubkey)",
         },
       },
       required: ["wallet"],
@@ -73,55 +74,13 @@ export const AGENT_TOOLS = [
   {
     name: "calculate_swap_needed",
     description:
-      "Calculate how many ETH the trainer would need to swap to reach a target evolution level or a target leaderboard rank.",
+      "Calculate how many SOL the trainer would need to swap to reach a target evolution level or a target leaderboard rank.",
     input_schema: {
       type: "object" as const,
       properties: {
-        wallet: { type: "string", description: "Trainer wallet address" },
-        target_level: {
-          type: "number",
-          description: "Target evolution level (1-5)",
-        },
-        target_rank: {
-          type: "number",
-          description: "Target leaderboard rank (1 = first place)",
-        },
-      },
-      required: ["wallet"],
-    },
-  },
-  {
-    name: "save_strategy",
-    description:
-      "Save a training strategy / set of rules for the trainer. This stores their goals so the agent can monitor and alert them.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        wallet: { type: "string" },
-        rules: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              type: { type: "string" },
-              params: { type: "object" },
-              description: { type: "string" },
-            },
-          },
-          description: "Array of strategy rules to save",
-        },
-      },
-      required: ["wallet", "rules"],
-    },
-  },
-  {
-    name: "get_payout_history",
-    description: "Get the payout history for a specific trainer wallet.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        wallet: { type: "string" },
-        limit: { type: "number", description: "Number of payouts to return (default 5)" },
+        wallet: { type: "string", description: "Trainer wallet address (base58)" },
+        target_level: { type: "number", description: "Target evolution level (1-5)" },
+        target_rank: { type: "number", description: "Target leaderboard rank" },
       },
       required: ["wallet"],
     },
@@ -129,7 +88,7 @@ export const AGENT_TOOLS = [
   {
     name: "open_tweet_intent",
     description:
-      "Generate a Twitter/X intent URL so the trainer can tweet the magic phrase or a custom $PKMN post to earn their score multiplier bonus. Returns a URL the trainer should click.",
+      "Generate a Twitter/X intent URL so the trainer can tweet the magic phrase or a custom $PKMN post to earn their score multiplier bonus.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -144,47 +103,47 @@ export const AGENT_TOOLS = [
         },
         contract_address: {
           type: "string",
-          description: "The $PKMN contract address to include",
+          description: "The $PKMN mint address to include",
         },
       },
       required: ["type"],
     },
   },
   {
-    name: "check_claimable_payout",
+    name: "open_swap_link",
     description:
-      "Check if the trainer has any pending vault payouts they can claim. Returns claimable amount in ETH and USD.",
+      "Generate a swap link so the trainer can buy more $PKMN on Solana to evolve their Pokémon. Returns Jupiter and Raydium swap links.",
     input_schema: {
       type: "object" as const,
       properties: {
-        wallet: { type: "string", description: "Trainer wallet address" },
-      },
-      required: ["wallet"],
-    },
-  },
-  {
-    name: "open_uniswap_swap",
-    description:
-      "Generate a Uniswap swap link so the trainer can buy more $PKMN to evolve their Pokémon. Use this when the trainer wants to level up or asks how to buy more tokens.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        wallet: { type: "string", description: "Trainer wallet address" },
-        eth_amount: {
+        wallet: { type: "string", description: "Trainer wallet address (base58)" },
+        sol_amount: {
           type: "number",
-          description: "Amount of ETH to swap for $PKMN",
+          description: "Amount of SOL to swap for $PKMN",
         },
         reason: {
           type: "string",
           description: "Why the trainer should swap (e.g. 'reach LV.3', 'overtake rank #2')",
         },
       },
-      required: ["wallet", "eth_amount"],
+      required: ["wallet", "sol_amount"],
+    },
+  },
+  {
+    name: "check_claimable_payout",
+    description:
+      "Check if the trainer has any claimable payouts from past vault rounds.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        wallet: { type: "string", description: "Trainer wallet address (base58)" },
+      },
+      required: ["wallet"],
     },
   },
 ] as const;
 
-// ─── Tool executor ────────────────────────────────────────────────────────────
+// ─── Tool executors ───────────────────────────────────────────────────────────
 export async function executeTool(
   toolName: string,
   input: Record<string, unknown>
@@ -193,69 +152,60 @@ export async function executeTool(
 
   switch (toolName) {
     case "get_trainer_status": {
-      const wallet = (input.wallet as string).toLowerCase();
+      const wallet = input.wallet as string;
 
-      // Get from Supabase first
       const { data: holder } = await supabase
         .from("holders")
         .select("*")
         .eq("wallet", wallet)
         .single();
 
-      // Also get live onchain balance
       let onchainBalance = "0";
       try {
-        onchainBalance = await getWalletTokenBalance(wallet, CONTRACT);
+        onchainBalance = await getWalletTokenBalance(wallet, MINT);
       } catch {}
 
-      // Get rank
-      let rank = null;
-      if (holder?.score) {
-        const { count } = await supabase
-          .from("holders")
-          .select("*", { count: "exact", head: true })
-          .gt("score", holder.score);
-        rank = (count ?? 0) + 1;
-      }
+      const { data: allHolders } = await supabase
+        .from("holders")
+        .select("wallet, score")
+        .order("score", { ascending: false });
 
-      const pokemonId = holder?.pokemon_id ?? assignPokemon(wallet);
-      const pk = POKEMON[pokemonId];
-      const level = holder?.evolution_level ?? 1;
-      const balance = holder?.balance_formatted ?? 0;
-      const progress = getEvolutionProgress(balance, level);
-      const nextThreshold = level < 5 ? EVOLUTION_THRESHOLDS[level] : null;
+      const rank =
+        (allHolders?.findIndex((h) => h.wallet === wallet) ?? -1) + 1;
+
+      const onchainFormatted = Number(onchainBalance) / Math.pow(10, DECIMALS);
+      const pokemonId        = assignPokemon(wallet);
+      const pk               = POKEMON[pokemonId];
+      const level            = holder ? holder.evolution_level : getEvolutionLevel(onchainFormatted);
+      const progress         = getEvolutionProgress(holder?.balance_formatted ?? onchainFormatted, level);
+      const nextThreshold    = EVOLUTION_THRESHOLDS[level] ?? null;
 
       return {
         wallet,
-        pokemon: {
-          name: pk?.name ?? "Unknown",
-          type: pk?.type ?? "unknown",
-          level,
-          evolution_progress_pct: progress.toFixed(1),
-          next_evolution_threshold: nextThreshold
-            ? fmtBalance(nextThreshold)
-            : "MAX LEVEL",
-        },
-        balance: fmtBalance(balance),
-        balance_raw: balance,
-        seconds_held: holder?.seconds_held ?? 0,
-        hold_time_formatted: fmtSeconds(holder?.seconds_held ?? 0),
+        pokemon: pk?.name ?? "Unknown",
+        type: pk?.type ?? "?",
+        level,
+        evolution_progress: `${progress.toFixed(1)}%`,
+        next_level_at: nextThreshold ? `${fmtBalance(nextThreshold)} $PKMN` : "MAX",
+        balance: fmtBalance(holder?.balance_formatted ?? onchainFormatted),
+        balance_formatted: holder?.balance_formatted ?? onchainFormatted,
+        onchain_balance: fmtBalance(onchainFormatted),
+        hold_time: fmtSeconds(holder?.seconds_held ?? 0),
         score: holder?.score ?? 0,
+        rank: rank > 0 ? rank : "Unranked",
         multiplier: holder?.effective_multiplier ?? 1,
-        rank,
-        share_pct: holder?.share_pct ?? 0,
-        estimated_payout_usd: holder?.estimated_payout_usd ?? 0,
-        total_eth_earned: holder?.total_eth_earned ?? 0,
-        onchain_balance_raw: onchainBalance,
+        share_pct: holder ? `${Number(holder.share_pct).toFixed(4)}%` : "0%",
+        estimated_payout_usd: holder
+          ? `$${Number(holder.estimated_payout_usd).toFixed(4)}`
+          : "$0",
+        callout_verified: holder?.callout_verified ?? false,
       };
     }
 
     case "get_vault_status": {
-      const wallet = input.wallet
-        ? (input.wallet as string).toLowerCase()
-        : null;
+      const wallet = input.wallet as string | undefined;
 
-      const { data: vault } = await supabase
+      const { data: round } = await supabase
         .from("vault_rounds")
         .select("*")
         .eq("status", "active")
@@ -263,196 +213,139 @@ export async function executeTool(
         .limit(1)
         .single();
 
-      const { count: totalHolders } = await supabase
+      const { count } = await supabase
         .from("holders")
         .select("*", { count: "exact", head: true })
         .gt("balance_formatted", 0);
 
-      let myShare = null;
+      let personalShare = null;
       if (wallet) {
-        const { data: holder } = await supabase
+        const { data: h } = await supabase
           .from("holders")
           .select("share_pct, estimated_payout_usd")
           .eq("wallet", wallet)
           .single();
-        myShare = holder;
+        if (h) {
+          personalShare = {
+            share_pct: `${Number(h.share_pct).toFixed(4)}%`,
+            estimated_payout_usd: `$${Number(h.estimated_payout_usd).toFixed(4)}`,
+          };
+        }
       }
 
-      const endsAt = vault?.ends_at ? new Date(vault.ends_at) : null;
-      const msRemaining = endsAt
-        ? Math.max(0, endsAt.getTime() - Date.now())
-        : null;
-      const minutesRemaining = msRemaining
-        ? Math.floor(msRemaining / 60000)
-        : null;
+      const endsAt     = round ? new Date(round.ends_at) : null;
+      const msLeft     = endsAt ? Math.max(0, endsAt.getTime() - Date.now()) : 0;
+      const minsLeft   = Math.floor(msLeft / 60000);
+      const secsLeft   = Math.floor((msLeft % 60000) / 1000);
 
       return {
-        round_id: vault?.id ?? null,
-        status: vault?.status ?? "no active round",
-        ends_at: vault?.ends_at ?? null,
-        minutes_remaining: minutesRemaining,
-        total_vault_usd: vault?.total_usd ?? 0,
-        total_vault_eth: vault?.total_eth ?? 0,
-        total_eligible_trainers: totalHolders ?? 0,
-        my_share_pct: myShare?.share_pct ?? null,
-        my_estimated_payout_usd: myShare?.estimated_payout_usd ?? null,
+        round_id: round?.id ?? null,
+        status: round?.status ?? "none",
+        total_sol: round ? Number(round.total_eth).toFixed(4) : "0",
+        total_usd: round ? `$${Number(round.total_usd).toFixed(2)}` : "$0",
+        payout_percent: "80%",
+        time_remaining: round ? `${minsLeft}m ${secsLeft}s` : "N/A",
+        eligible_trainers: count ?? 0,
+        shifts_completed: round?.shifts_completed ?? 0,
+        personal: personalShare,
       };
     }
 
     case "get_leaderboard": {
-      const limit = Math.min((input.limit as number) ?? 10, 20);
+      const limit = Math.min(Number(input.limit ?? 10), 20);
 
       const { data: holders } = await supabase
         .from("holders")
         .select("*")
-        .gt("balance_formatted", 0)
         .order("score", { ascending: false })
         .limit(limit);
 
       return {
         leaderboard: (holders ?? []).map((h, i) => {
-          const pk = POKEMON[h.pokemon_id ?? assignPokemon(h.wallet)];
+          const pk = POKEMON[h.pokemon_id];
           return {
             rank: i + 1,
-            wallet: h.wallet,
-            wallet_short: `${h.wallet.slice(0, 6)}…${h.wallet.slice(-4)}`,
-            pokemon: pk?.name ?? "Unknown",
-            pokemon_type: pk?.type ?? "unknown",
+            wallet: `${h.wallet.slice(0, 6)}...${h.wallet.slice(-4)}`,
+            pokemon: pk?.name ?? "?",
             level: h.evolution_level,
             balance: fmtBalance(h.balance_formatted),
+            multiplier: `×${h.effective_multiplier}`,
             score: h.score,
-            share_pct: h.share_pct?.toFixed(2),
-            estimated_payout_usd: h.estimated_payout_usd?.toFixed(2),
+            estimated_payout: `$${Number(h.estimated_payout_usd).toFixed(4)}`,
           };
         }),
+        total_ranked: holders?.length ?? 0,
       };
     }
 
     case "get_token_price": {
-      const price = await getTokenPrice(CONTRACT);
+      const price = await getTokenPrice(MINT);
       return {
-        price_usd: price.priceUsd,
-        price_change_24h_pct: price.priceChange24h,
-        market_cap_usd: price.marketCapUsd,
-        volume_24h_usd: price.volume24hUsd,
-        liquidity_usd: price.liquidity,
-        dexscreener_url: price.pairAddress
-          ? `https://dexscreener.com/ethereum/${price.pairAddress}`
-          : null,
+        price_usd: `$${price.priceUsd.toFixed(8)}`,
+        price_change_24h: `${price.priceChange24h.toFixed(2)}%`,
+        market_cap: price.marketCapUsd > 0 ? `$${(price.marketCapUsd / 1000).toFixed(1)}K` : "N/A",
+        volume_24h: `$${(price.volume24hUsd / 1000).toFixed(1)}K`,
+        liquidity: `$${(price.liquidity / 1000).toFixed(1)}K`,
+        dex_pair: price.pairAddress,
       };
     }
 
     case "calculate_swap_needed": {
-      const wallet = (input.wallet as string).toLowerCase();
-      const targetLevel = input.target_level as number | undefined;
-      const targetRank = input.target_rank as number | undefined;
+      const wallet       = input.wallet as string;
+      const targetLevel  = input.target_level as number | undefined;
+      const targetRank   = input.target_rank as number | undefined;
 
-      const price = await getTokenPrice(CONTRACT);
       const { data: holder } = await supabase
         .from("holders")
-        .select("balance_formatted, evolution_level")
+        .select("balance_formatted")
         .eq("wallet", wallet)
         .single();
 
-      const currentBalance = holder?.balance_formatted ?? 0;
-      const results: Record<string, unknown> = { current_balance: fmtBalance(currentBalance) };
+      const currentBalance = Number(holder?.balance_formatted ?? 0);
+      const price          = await getTokenPrice(MINT);
 
-      if (targetLevel && targetLevel > 1 && targetLevel <= 5) {
-        const needed = EVOLUTION_THRESHOLDS[targetLevel - 1];
-        const deficit = Math.max(0, needed - currentBalance);
-        const ethNeeded =
-          price.priceUsd > 0 ? (deficit * price.priceUsd) / 1 : null;
-        results.to_reach_level = {
-          target_level: targetLevel,
-          tokens_needed: fmtBalance(deficit),
-          approx_eth_needed: ethNeeded
-            ? (ethNeeded / (1 / price.priceUsd)).toFixed(6)
-            : "price unavailable",
-        };
-      }
+      let targetBalance = 0;
+      let reason        = "";
 
-      if (targetRank) {
-        const { data: rankHolder } = await supabase
+      if (targetLevel) {
+        targetBalance = EVOLUTION_THRESHOLDS[targetLevel - 1] ?? 0;
+        reason        = `reach LV.${targetLevel}`;
+      } else if (targetRank) {
+        const { data: ranked } = await supabase
           .from("holders")
-          .select("score, balance_formatted")
+          .select("balance_formatted")
           .order("score", { ascending: false })
-          .range(targetRank - 1, targetRank - 1)
-          .single();
-
-        if (rankHolder) {
-          const scoreDeficit = Math.max(0, rankHolder.score - (holder?.balance_formatted ?? 0));
-          results.to_reach_rank = {
-            target_rank: targetRank,
-            their_score: rankHolder.score,
-            approx_tokens_needed: fmtBalance(scoreDeficit),
-            note: "Estimate based on current scores — hold time also affects score",
-          };
-        }
+          .range(targetRank - 2, targetRank - 1);
+        targetBalance = Number(ranked?.[0]?.balance_formatted ?? 0) + 1;
+        reason        = `reach rank #${targetRank}`;
       }
 
-      return results;
-    }
-
-    case "save_strategy": {
-      const wallet = (input.wallet as string).toLowerCase();
-      const rules = input.rules as unknown[];
-
-      await supabase.from("agent_strategies").upsert(
-        {
-          wallet,
-          rules: JSON.stringify(rules),
-          active: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "wallet" }
-      );
+      const needed       = Math.max(0, targetBalance - currentBalance);
+      const neededUsd    = needed * price.priceUsd;
+      const { getSolPriceUsd } = await import("@/lib/dexscreener");
+      const solPrice     = await getSolPriceUsd();
+      const neededSol    = solPrice > 0 ? neededUsd / solPrice : 0;
 
       return {
-        saved: true,
-        wallet,
-        rules_count: rules.length,
-        message: "Strategy saved. I'll monitor your position according to these rules.",
-      };
-    }
-
-    case "get_payout_history": {
-      const wallet = (input.wallet as string).toLowerCase();
-      const limit = Math.min((input.limit as number) ?? 5, 20);
-
-      const { data: payouts } = await supabase
-        .from("payouts")
-        .select("*")
-        .eq("wallet", wallet)
-        .order("won_at", { ascending: false })
-        .limit(limit);
-
-      const totalEth = (payouts ?? []).reduce(
-        (sum, p) => sum + (p.amount_eth ?? 0),
-        0
-      );
-
-      return {
-        payouts: (payouts ?? []).map((p) => ({
-          round: p.round_id,
-          share_pct: p.share_pct?.toFixed(2),
-          eth: p.amount_eth?.toFixed(6),
-          usd: p.amount_usd?.toFixed(2),
-          date: new Date(p.won_at).toLocaleDateString(),
-        })),
-        total_eth_earned: totalEth.toFixed(6),
-        rounds_won: payouts?.length ?? 0,
+        current_balance: fmtBalance(currentBalance),
+        target_balance: fmtBalance(targetBalance),
+        needed_pkmn: fmtBalance(needed),
+        needed_usd: `$${neededUsd.toFixed(2)}`,
+        needed_sol: `${neededSol.toFixed(4)} SOL`,
+        reason,
+        pkmn_price: `$${price.priceUsd.toFixed(8)}`,
       };
     }
 
     case "open_tweet_intent": {
-      const CONTRACT_ADDR = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
-      const type     = input.type as string;
-      const phrase   = (input.magic_phrase as string) ?? "gotta catch em all";
-      const ca       = (input.contract_address as string) ?? CONTRACT_ADDR;
+      const MINT_ADDR  = MINT ?? "";
+      const type       = input.type as string;
+      const phrase     = (input.magic_phrase as string) ?? "gotta catch em all";
+      const ca         = (input.contract_address as string) ?? MINT_ADDR;
       const multiplier = type === "own_post" ? 4 : 2;
-      const text = type === "magic_phrase"
+      const text       = type === "magic_phrase"
         ? `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`
-        : `🔥 Holding $PKMN Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Ethereum`;
+        : `🔥 Holding $PKMN on Solana — Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Solana`;
       const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
       return {
         tweet_url: url,
@@ -462,139 +355,42 @@ export async function executeTool(
       };
     }
 
-    case "check_claimable_payout": {
-      const walletAddr = (input.wallet as string).toLowerCase();
-      const { data: payoutsData } = await supabase
-        .from("payouts").select("*").eq("wallet", walletAddr)
-        .order("won_at", { ascending: false }).limit(10);
-      const { data: holderData } = await supabase
-        .from("holders").select("estimated_payout_usd, share_pct")
-        .eq("wallet", walletAddr).single();
-      const unclaimed = (payoutsData ?? []).filter((p: any) => !p.claimed);
-      const unclaimedUsd = unclaimed.reduce((s: number, p: any) => s + (p.amount_usd ?? 0), 0);
-      const unclaimedEth = unclaimed.reduce((s: number, p: any) => s + (p.amount_eth ?? 0), 0);
+    case "open_swap_link": {
+      const solAmount = Number(input.sol_amount ?? 0.1);
+      const reason    = (input.reason as string) ?? "evolve your Pokémon";
+      const jupiterUrl = `https://jup.ag/swap/SOL-${MINT}`;
+      const raydiumUrl = `https://raydium.io/swap/?inputMint=So11111111111111111111111111111111111111112&outputMint=${MINT}&inputAmount=${solAmount}`;
       return {
-        unclaimed_payouts: unclaimed.length,
-        unclaimed_eth: unclaimedEth.toFixed(6),
-        unclaimed_usd: unclaimedUsd.toFixed(2),
-        current_round_estimate_usd: holderData?.estimated_payout_usd?.toFixed(2) ?? "0.00",
-        current_share_pct: holderData?.share_pct?.toFixed(2) ?? "0.00",
-        message: unclaimedUsd > 0
-          ? `You have $${unclaimedUsd.toFixed(2)} in unclaimed vault rewards!`
-          : "No unclaimed payouts yet. Keep holding!",
+        sol_amount: solAmount,
+        reason,
+        jupiter_url: jupiterUrl,
+        raydium_url: raydiumUrl,
+        instructions: `To ${reason}:\n👉 Swap on Jupiter (recommended): ${jupiterUrl}\n👉 Or Raydium: ${raydiumUrl}\n\nYour Pokémon will evolve in the next sync (~5 min).`,
       };
     }
 
-    case "open_uniswap_swap": {
-      const CONTRACT_ADDR = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
-      const ethAmt = Number(input.eth_amount ?? 0.01);
-      const reason = (input.reason as string) ?? "evolve your Pokémon";
-      const uniUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT_ADDR}&exactAmount=${ethAmt}&chain=ethereum`;
+    case "check_claimable_payout": {
+      const walletAddr = input.wallet as string;
+      const { data: payoutsData } = await supabase
+        .from("payouts")
+        .select("*")
+        .eq("wallet", walletAddr)
+        .order("won_at", { ascending: false })
+        .limit(5);
+
+      const total = (payoutsData ?? []).reduce(
+        (sum, p) => sum + Number(p.amount_usd ?? 0),
+        0
+      );
       return {
-        eth_amount: ethAmt,
-        reason,
-        uniswap_url: uniUrl,
-        instructions: `To ${reason}:\n👉 Swap on Uniswap: ${uniUrl}\n\nYour Pokémon will evolve in the next sync (~5 min).`,
+        wallet: walletAddr,
+        recent_payouts: payoutsData ?? [],
+        total_earned_usd: `$${total.toFixed(4)}`,
+        count: payoutsData?.length ?? 0,
       };
     }
 
     default:
       return { error: `Unknown tool: ${toolName}` };
-  }
-}
-
-// ─── New tool executors (appended) ───────────────────────────────────────────
-
-export async function executeNewTool(
-  toolName: string,
-  input: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
-
-  switch (toolName) {
-
-    case "open_tweet_intent": {
-      const type     = input.type as string;
-      const phrase   = (input.magic_phrase as string) ?? "gotta catch em all";
-      const ca       = (input.contract_address as string) ?? CONTRACT;
-
-      let text = "";
-      let multiplier = 2;
-
-      if (type === "magic_phrase") {
-        text = `"${phrase}" $PKMN 🎮\n\nCA: ${ca}`;
-        multiplier = 2;
-      } else {
-        text = `🔥 Holding $PKMN Gotta catch em all! 🎮\n\nCA: ${ca}\n\n#PKMN #Ethereum`;
-        multiplier = 4;
-      }
-
-      const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
-
-      return {
-        tweet_url: url,
-        multiplier,
-        instructions: `Click this link to open Twitter with the pre-filled tweet. After posting, submit the tweet URL in the Register section to activate your ×${multiplier} bonus.`,
-        type,
-      };
-    }
-
-    case "check_claimable_payout": {
-      const wallet = (input.wallet as string).toLowerCase();
-      const { getSupabaseAdmin } = await import("@/lib/supabase");
-      const supabase = getSupabaseAdmin();
-
-      // Get unclaimed payouts
-      const { data: payouts } = await supabase
-        .from("payouts")
-        .select("*")
-        .eq("wallet", wallet)
-        .order("won_at", { ascending: false })
-        .limit(10);
-
-      const { data: holder } = await supabase
-        .from("holders")
-        .select("estimated_payout_usd, share_pct")
-        .eq("wallet", wallet)
-        .single();
-
-      const totalUnclaimed = (payouts ?? [])
-        .filter((p) => !p.claimed)
-        .reduce((sum, p) => sum + (p.amount_eth ?? 0), 0);
-
-      const totalUnclaimedUsd = (payouts ?? [])
-        .filter((p) => !p.claimed)
-        .reduce((sum, p) => sum + (p.amount_usd ?? 0), 0);
-
-      return {
-        wallet,
-        unclaimed_payouts: (payouts ?? []).filter((p) => !p.claimed).length,
-        unclaimed_eth: totalUnclaimed.toFixed(6),
-        unclaimed_usd: totalUnclaimedUsd.toFixed(2),
-        current_round_estimate_usd: holder?.estimated_payout_usd?.toFixed(2) ?? "0.00",
-        current_share_pct: holder?.share_pct?.toFixed(2) ?? "0.00",
-        message: totalUnclaimedUsd > 0
-          ? `You have $${totalUnclaimedUsd.toFixed(2)} in unclaimed payouts! Vault claim coming soon.`
-          : "No unclaimed payouts yet. Keep holding to earn from the next vault round!",
-      };
-    }
-
-    case "open_uniswap_swap": {
-      const wallet    = (input.wallet as string).toLowerCase();
-      const ethAmount = Number(input.eth_amount ?? 0.01);
-      const reason    = (input.reason as string) ?? "evolve your Pokémon";
-      const CONTRACT  = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "";
-      const uniswapUrl = `https://app.uniswap.org/swap?inputCurrency=ETH&outputCurrency=${CONTRACT}&exactAmount=${ethAmount}&chain=ethereum`;
-      return {
-        wallet,
-        eth_amount: ethAmount,
-        reason,
-        uniswap_url: uniswapUrl,
-        instructions: `To ${reason}, swap ${ethAmount} ETH for $PKMN:\n1. Click the Uniswap link\n2. Review and approve the swap\n3. Your Pokémon will evolve after the next sync (every 5 min)`,
-      };
-    }
-
-    default:
-      return { error: `Unknown new tool: ${toolName}` };
   }
 }

@@ -15,7 +15,7 @@ create table if not exists holders (
   effective_multiplier numeric not null default 1,
   share_pct           numeric not null default 0,
   estimated_payout_usd numeric not null default 0,
-  total_eth_earned    numeric not null default 0,
+  total_sol_earned    numeric not null default 0,
   callout_verified    boolean not null default false,
   updated_at          timestamptz not null default now()
 );
@@ -28,7 +28,7 @@ create table if not exists vault_rounds (
   id                  bigserial primary key,
   starts_at           timestamptz not null default now(),
   ends_at             timestamptz not null,
-  total_eth           numeric not null default 0,
+  total_sol           numeric not null default 0,
   total_usd           numeric not null default 0,
   status              text not null default 'active'
                         check (status in ('active', 'settling', 'settled')),
@@ -43,7 +43,7 @@ create table if not exists payouts (
   wallet      text not null references holders(wallet),
   round_id    bigint not null references vault_rounds(id),
   share_pct   numeric not null default 0,
-  amount_eth  numeric not null default 0,
+  amount_sol  numeric not null default 0,
   amount_usd  numeric not null default 0,
   won_at      timestamptz not null default now()
 );
@@ -108,12 +108,12 @@ begin
   loop
     v_share := (v_holder.score::numeric / v_total_score::numeric) * 100;
 
-    insert into payouts (wallet, round_id, share_pct, amount_eth, amount_usd, won_at)
+    insert into payouts (wallet, round_id, share_pct, amount_sol, amount_usd, won_at)
     values (
       v_holder.wallet,
       p_round_id,
       v_share,
-      (v_share / 100) * v_round.total_eth,
+      (v_share / 100) * v_round.total_sol,
       (v_share / 100) * v_round.total_usd,
       now()
     );
@@ -121,7 +121,7 @@ begin
     -- Update total earned
     update holders
     set
-      total_eth_earned = total_eth_earned + (v_share / 100) * v_round.total_eth,
+      total_sol_earned = total_sol_earned + (v_share / 100) * v_round.total_sol,
       estimated_payout_usd = 0  -- reset after payout
     where wallet = v_holder.wallet;
   end loop;

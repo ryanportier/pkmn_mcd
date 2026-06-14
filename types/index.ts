@@ -23,7 +23,7 @@ export interface Holder {
   effective_multiplier: number;
   share_pct: number;
   estimated_payout_usd: number;
-  total_eth_earned: number;
+  total_sol_earned: number;
   callout_verified: boolean;
   updated_at: string;
 }
@@ -33,7 +33,7 @@ export interface VaultRound {
   id: number;
   starts_at: string;
   ends_at: string;
-  total_eth: number;
+  total_sol: number;
   total_usd: number;
   status: "active" | "settling" | "settled";
   shifts_completed: number;
@@ -45,7 +45,7 @@ export interface Payout {
   wallet: string;
   round_id: number;
   share_pct: number;
-  amount_eth: number;
+  amount_sol: number;
   amount_usd: number;
   won_at: string;
 }

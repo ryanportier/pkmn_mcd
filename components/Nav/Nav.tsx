@@ -30,7 +30,7 @@ export default function Nav() {
         <div className={styles.right}>
           <div className={styles.livePill}>
             <span className={styles.liveDot} />
-            ETHEREUM MAINNET
+            SOLANA MAINNET
           </div>
 
           {isConnected && wallet ? (

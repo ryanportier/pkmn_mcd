@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAllHolders, getVaultWalletInfo } from "@/lib/alchemy";
+import { getSolPriceUsd } from "@/lib/dexscreener";
 import { assignPokemon, getEvolutionLevel, calcScore } from "@/lib/pokemon";
 
-const CONTRACT     = process.env.NEXT_PUBLIC_PKMN_CONTRACT!;
+const MINT         = process.env.NEXT_PUBLIC_PKMN_MINT!;
 const VAULT_WALLET = process.env.VAULT_WALLET_ADDRESS;
-const DECIMALS     = 18;
+const DECIMALS     = 9;
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -13,46 +14,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let lookback: "1h" | "1d" | "7d" = "1d";
-  try {
-    const body = await req.json().catch(() => ({}));
-    if (["1h", "1d", "7d"].includes(body.lookback)) lookback = body.lookback;
-  } catch {}
-
   const supabase = getSupabaseAdmin();
-  const now = new Date();
+  const now      = new Date();
 
-  // ── 1. Fetch holders from Alchemy ─────────────────────────────────────────
-  const rawHolders = await getAllHolders(CONTRACT, lookback);
+  // ── 1. Fetch all SPL token holders via Alchemy ────────────────────────────
+  // No lookback needed on Solana — getTokenAccounts returns all current holders
+  const rawHolders = await getAllHolders(MINT);
 
-  // ── 2. Vault balance — try wallet first, fallback to Supabase value ────────
-  let vaultEth = 0;
+  // ── 2. Vault SOL balance ──────────────────────────────────────────────────
+  let vaultSol = 0;
   let vaultUsd = 0;
 
-  if (VAULT_WALLET && VAULT_WALLET !== "0xTU_WALLET_FEES") {
+  if (VAULT_WALLET) {
     try {
-      const info = await getVaultWalletInfo(VAULT_WALLET, CONTRACT);
-      vaultEth = info.total_eth_value; // ETH nativo + WETH combinados
+      const info     = await getVaultWalletInfo(VAULT_WALLET, MINT);
+      const solPrice = await getSolPriceUsd();
+      vaultSol       = info.total_sol_value;
+      vaultUsd       = vaultSol * solPrice;
 
-      // Get ETH price in USD from WETH/USDC pair on Base via DexScreener
-      const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-      const ethPriceRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${WETH}`)
-        .then((r) => r.json()).catch(() => null);
-      const ethPair = (ethPriceRes?.pairs ?? [])
-        .filter((p: any) => p.chainId === "ethereum")
-        .sort((a: any, b: any) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
-      const ethPriceUsd = ethPair ? parseFloat(ethPair?.priceUsd ?? "0") || 3500 : 3500;
-
-      vaultUsd = vaultEth * ethPriceUsd;
-      await supabase.from("vault_rounds")
-        .update({ total_eth: vaultEth, total_usd: vaultUsd })
+      await supabase
+        .from("vault_rounds")
+        .update({ total_eth: vaultSol, total_usd: vaultUsd })
         .eq("status", "active");
     } catch (e) {
-      console.error("Vault wallet fetch failed:", e);
+      console.error("Vault SOL fetch failed:", e);
     }
   }
 
-  // Fallback: read current vault total_usd from Supabase (set manually or from previous sync)
+  // Fallback: read from Supabase
   if (vaultUsd === 0) {
     const { data: activeVault } = await supabase
       .from("vault_rounds")
@@ -63,25 +52,25 @@ export async function POST(req: NextRequest) {
       .single();
     if (activeVault) {
       vaultUsd = Number(activeVault.total_usd ?? 0);
-      vaultEth = Number(activeVault.total_eth ?? 0);
+      vaultSol = Number(activeVault.total_eth ?? 0);
     }
   }
 
   // ── 3. Fetch existing holders + callout bonuses ───────────────────────────
   const [existingRes, calloutsRes] = await Promise.all([
     supabase.from("holders").select("wallet, seconds_held, balance_formatted, updated_at"),
-    supabase.from("trainer_profiles")
+    supabase
+      .from("trainer_profiles")
       .select("wallet, callout_multiplier, callout_status")
       .eq("callout_status", "approved"),
   ]);
 
   const existingMap = new Map(
-    (existingRes.data ?? []).map((h) => [h.wallet.toLowerCase(), h])
+    (existingRes.data ?? []).map((h) => [h.wallet, h])
   );
-  // trainer_profiles table may not exist yet — handle gracefully
   const calloutMap = new Map(
     (calloutsRes.data ?? []).map((p) => [
-      p.wallet.toLowerCase(),
+      p.wallet,
       Number(p.callout_multiplier ?? 1),
     ])
   );
@@ -90,8 +79,8 @@ export async function POST(req: NextRequest) {
   let holdTimeUpdated = 0;
 
   for (const { address, rawBalance } of rawHolders) {
-    const wallet            = address.toLowerCase();
-    const balance_formatted = Number(BigInt(rawBalance)) / Math.pow(10, DECIMALS);
+    const wallet            = address; // base58, no lowercasing needed
+    const balance_formatted = Number(rawBalance) / Math.pow(10, DECIMALS);
 
     const prev        = existingMap.get(wallet);
     const prevBalance = Number(prev?.balance_formatted ?? 0);
@@ -99,29 +88,25 @@ export async function POST(req: NextRequest) {
     let seconds_held  = prevSeconds;
 
     if (prev?.updated_at) {
-      const prevTime = new Date(prev.updated_at).getTime();
-      const diffSecs = Math.floor((now.getTime() - prevTime) / 1000);
-
+      const diffSecs = Math.floor(
+        (now.getTime() - new Date(prev.updated_at).getTime()) / 1000
+      );
       if (balance_formatted >= prevBalance * 0.99 && diffSecs > 0) {
-        // Holding or bought more → accumulate time
         seconds_held = prevSeconds + diffSecs;
         holdTimeUpdated++;
       } else if (balance_formatted < prevBalance * 0.99) {
-        // Sold → reset
         seconds_held = 0;
       }
-      // else: same balance, same seconds (shouldn't happen but safe)
     } else {
-      // Brand new holder
       seconds_held = 0;
     }
 
-    const pokemonId        = assignPokemon(wallet);
-    const evolution_level  = getEvolutionLevel(balance_formatted);
-    const calloutBonus     = calloutMap.get(wallet) ?? 1;
-    const callout_verified = calloutBonus > 1;
+    const pokemonId           = assignPokemon(wallet);
+    const evolution_level     = getEvolutionLevel(balance_formatted);
+    const calloutBonus        = calloutMap.get(wallet) ?? 1;
+    const callout_verified    = calloutBonus > 1;
     const effective_multiplier = evolution_level * calloutBonus;
-    const score = calcScore(balance_formatted, seconds_held, evolution_level, callout_verified);
+    const score               = calcScore(balance_formatted, seconds_held, evolution_level, callout_verified);
 
     upserts.push({
       wallet,
@@ -142,7 +127,7 @@ export async function POST(req: NextRequest) {
   // ── 4. Share % and estimated payout ──────────────────────────────────────
   const totalScore = upserts.reduce((sum, h) => sum + (h.score ?? 0), 0);
   for (const h of upserts) {
-    h.share_pct = totalScore > 0 ? ((h.score ?? 0) / totalScore) * 100 : 0;
+    h.share_pct           = totalScore > 0 ? ((h.score ?? 0) / totalScore) * 100 : 0;
     h.estimated_payout_usd = vaultUsd > 0 ? (h.share_pct / 100) * vaultUsd * 0.8 : 0;
   }
 
@@ -153,19 +138,20 @@ export async function POST(req: NextRequest) {
       .from("holders")
       .upsert(upserts.slice(i, i + BATCH), {
         onConflict: "wallet",
-        ignoreDuplicates: false, // IMPORTANT: must update existing rows
+        ignoreDuplicates: false,
       });
     if (error) console.error("Upsert error:", error);
   }
 
-  // ── 6. Zero out wallets no longer holding ────────────────────────────────
-  const activeSet = new Set(rawHolders.map((h) => h.address.toLowerCase()));
+  // ── 6. Zero out wallets no longer holding ─────────────────────────────────
+  const activeSet = new Set(rawHolders.map((h) => h.address));
   const toZero    = (existingRes.data ?? [])
-    .filter((h) => !activeSet.has(h.wallet.toLowerCase()))
+    .filter((h) => !activeSet.has(h.wallet))
     .map((h) => h.wallet);
 
   if (toZero.length > 0) {
-    await supabase.from("holders")
+    await supabase
+      .from("holders")
       .update({ balance_formatted: 0, score: 0, share_pct: 0, seconds_held: 0 })
       .in("wallet", toZero);
   }
@@ -174,11 +160,11 @@ export async function POST(req: NextRequest) {
     synced: upserts.length,
     zeroed: toZero.length,
     hold_time_updated: holdTimeUpdated,
-    avg_seconds: upserts.length > 0
-      ? Math.floor(upserts.reduce((s, h) => s + h.seconds_held, 0) / upserts.length)
-      : 0,
-    lookback,
-    vault_eth: vaultEth,
+    avg_seconds:
+      upserts.length > 0
+        ? Math.floor(upserts.reduce((s, h) => s + h.seconds_held, 0) / upserts.length)
+        : 0,
+    vault_sol: vaultSol,
     vault_usd: vaultUsd.toFixed(2),
     timestamp: now.toISOString(),
   });

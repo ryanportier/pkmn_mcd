@@ -32,7 +32,7 @@ interface ProfileData {
     effective_multiplier: number;
     share_pct: number;
     estimated_payout_usd: number;
-    total_eth_earned: number;
+    total_sol_earned: number;
     callout_verified: boolean;
     updated_at: string;
   } | null;
@@ -48,10 +48,15 @@ interface ProfileData {
     id: number;
     round_id: number;
     share_pct: number;
-    amount_eth: number;
+    amount_sol: number;
     amount_usd: number;
     won_at: string;
   }[];
+}
+
+// Solana pubkeys are base58, 32–44 chars
+function isValidSolanaWallet(w: string): boolean {
+  return w.length >= 32 && w.length <= 44 && /^[1-9A-HJ-NP-Za-km-z]+$/.test(w);
 }
 
 export default function ProfilePage() {
@@ -59,11 +64,11 @@ export default function ProfilePage() {
   const { wallet: myWallet } = useWallet();
 
   const walletParam  = params.get("wallet");
-  const target       = (walletParam ?? myWallet ?? "").toLowerCase();
+  const target       = walletParam ?? myWallet ?? "";
 
-  const [data, setData]   = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [wallet, setWallet]   = useState(walletParam ?? "");
+  const [data, setData]         = useState<ProfileData | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [wallet, setWallet]     = useState(walletParam ?? "");
   const [searched, setSearched] = useState(!!walletParam);
 
   useEffect(() => {
@@ -72,7 +77,7 @@ export default function ProfilePage() {
   }, [walletParam, myWallet]);
 
   async function fetchProfile(w: string) {
-    if (!w || w.length !== 42) return;
+    if (!w || !isValidSolanaWallet(w)) return;
     setLoading(true);
     try {
       const [trainerRes, profileRes] = await Promise.all([
@@ -89,7 +94,7 @@ export default function ProfilePage() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (wallet.length === 42) fetchProfile(wallet);
+    if (isValidSolanaWallet(wallet)) fetchProfile(wallet);
   }
 
   const holder    = data?.holder;
@@ -98,10 +103,10 @@ export default function ProfilePage() {
   const level     = holder?.evolution_level ?? 1;
   const balance   = holder?.balance_formatted ?? 0;
   const progress  = holder ? getEvolutionProgress(balance, level) : 0;
-  const isMe      = myWallet && target && myWallet.toLowerCase() === target.toLowerCase();
+  const isMe      = myWallet && target && myWallet === target;
 
   const totalPayouts = data?.payouts.reduce((s, p) => s + p.amount_usd, 0) ?? 0;
-  const totalEth     = data?.payouts.reduce((s, p) => s + p.amount_eth, 0) ?? 0;
+  const totalSol     = data?.payouts.reduce((s, p) => s + p.amount_sol, 0) ?? 0;
 
   return (
     <>
@@ -116,7 +121,7 @@ export default function ProfilePage() {
               <input
                 className={styles.searchInput}
                 type="text"
-                placeholder="Enter wallet address 0x..."
+                placeholder="Enter Solana wallet address…"
                 value={wallet}
                 onChange={(e) => setWallet(e.target.value.trim())}
                 spellCheck={false}
@@ -125,7 +130,6 @@ export default function ProfilePage() {
                 SEARCH
               </button>
             </form>
-
           </div>
 
           {loading && (
@@ -151,12 +155,10 @@ export default function ProfilePage() {
               {/* ── Left: Pokemon card ─────────────────────────────────────── */}
               <div className={styles.pokeCard}>
                 <div className={styles.pokeCardInner}>
-                  {/* Glow bg */}
                   <div
                     className={styles.pokeGlow}
                     style={{ background: `radial-gradient(ellipse at 50% 0%, ${TYPE_COLOR[pk.type]}22, transparent 70%)` }}
                   />
-
                   <Image
                     src={getPokemonSprite(pokemonId!, level)}
                     alt={pk.name}
@@ -165,7 +167,6 @@ export default function ProfilePage() {
                     className={styles.pokeSprite}
                     priority
                   />
-
                   <div className={`type-badge type-${pk.type}`} style={{ marginBottom: 8 }}>
                     {TYPE_EMOJI[pk.type]} {pk.type.toUpperCase()}
                   </div>
@@ -254,7 +255,7 @@ export default function ProfilePage() {
                   </div>
                   <div className={styles.statBox}>
                     <div className={styles.statLabel}>TOTAL EARNED</div>
-                    <div className={styles.statVal}>{totalEth.toFixed(6)}</div>
+                    <div className={styles.statVal}>{totalSol.toFixed(6)} SOL</div>
                     <div className={styles.statSub}>${totalPayouts.toFixed(2)} USD all-time</div>
                   </div>
                   <div className={styles.statBox}>
@@ -294,7 +295,7 @@ export default function ProfilePage() {
                     <div className={styles.payoutHead}>
                       <span>ROUND</span>
                       <span>SHARE</span>
-                      <span>ETH</span>
+                      <span>SOL</span>
                       <span>USD</span>
                       <span>DATE</span>
                     </div>
@@ -302,7 +303,7 @@ export default function ProfilePage() {
                       <div key={p.id} className={styles.payoutRow}>
                         <span>#{p.round_id}</span>
                         <span>{p.share_pct.toFixed(1)}%</span>
-                        <span>{p.amount_eth.toFixed(6)}</span>
+                        <span>{p.amount_sol.toFixed(6)}</span>
                         <span className={styles.payoutUsd}>${p.amount_usd.toFixed(2)}</span>
                         <span>{new Date(p.won_at).toLocaleDateString()}</span>
                       </div>

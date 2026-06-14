@@ -1,47 +1,56 @@
-import { SiweMessage } from "siwe";
+import * as nacl from "tweetnacl";
+import bs58 from "bs58";
 import { SignJWT, jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET!);
-const JWT_ISSUER = "pkmn-eth";
-const JWT_AUDIENCE = "pkmn-eth-app";
+const JWT_SECRET   = new TextEncoder().encode(process.env.JWT_SECRET!);
+const JWT_ISSUER   = "pkmn-solana";
+const JWT_AUDIENCE = "pkmn-solana-app";
 
-// ─── Create a SIWE message for the client to sign ────────────────────────────
-export function createSiweMessage(
-  address: string,
-  chainId: number,
+// ─── SIWS — Sign In With Solana ───────────────────────────────────────────────
+// Follows the SIWS spec (EIP-4361 port for Solana).
+// The client constructs the same message, signs it with Phantom/Backpack,
+// and sends { message, signature, publicKey } to /api/auth/verify.
+
+export function createSiwsMessage(
+  publicKey: string,
   nonce: string,
   domain: string,
   uri: string
 ): string {
-  const message = new SiweMessage({
-    domain,
-    address,
-    statement: "Sign in to $PKMN . Gotta catch em all.",
-    uri,
-    version: "1",
-    chainId,
-    nonce,
-  });
-  return message.prepareMessage();
+  return [
+    `${domain} wants you to sign in with your Solana account:`,
+    publicKey,
+    "",
+    "Sign in to $PKMN on Solana. Gotta catch em all.",
+    "",
+    `URI: ${uri}`,
+    "Version: 1",
+    "Chain ID: mainnet-beta",
+    `Nonce: ${nonce}`,
+    `Issued At: ${new Date().toISOString()}`,
+  ].join("\n");
 }
 
-// ─── Verify SIWE message + signature ─────────────────────────────────────────
-export async function verifySiwe(
+// ─── Verify SIWS: ed25519 signature ───────────────────────────────────────────
+// signature is base58-encoded (as returned by Phantom signMessage)
+export function verifySiws(
   message: string,
-  signature: string
-): Promise<string | null> {
+  signatureBase58: string,
+  publicKeyBase58: string
+): boolean {
   try {
-    const siweMsg = new SiweMessage(message);
-    const { data } = await siweMsg.verify({ signature });
-    return data.address.toLowerCase();
+    const msgBytes = new TextEncoder().encode(message);
+    const sigBytes = bs58.decode(signatureBase58);
+    const pubBytes = bs58.decode(publicKeyBase58);
+    return nacl.sign.detached.verify(msgBytes, sigBytes, pubBytes);
   } catch {
-    return null;
+    return false;
   }
 }
 
-// ─── JWT helpers ─────────────────────────────────────────────────────────────
+// ─── JWT helpers ──────────────────────────────────────────────────────────────
 export async function signJwt(wallet: string): Promise<string> {
-  return new SignJWT({ wallet: wallet.toLowerCase() })
+  return new SignJWT({ wallet })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer(JWT_ISSUER)
@@ -62,7 +71,7 @@ export async function verifyJwt(token: string): Promise<string | null> {
   }
 }
 
-// ─── Nonce store (in-memory, swap for Redis/Supabase in prod) ────────────────
+// ─── Nonce store (in-memory, swap for Redis/Supabase in prod) ─────────────────
 const nonces = new Map<string, { value: string; expiresAt: number }>();
 
 export function generateNonce(): string {

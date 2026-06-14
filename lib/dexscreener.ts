@@ -18,19 +18,12 @@ const FALLBACK: TokenPrice = {
   pairAddress: "",
 };
 
-export async function getTokenPrice(
-  contractAddress: string
-): Promise<TokenPrice> {
-  if (
-    !contractAddress ||
-    contractAddress === "0x0000000000000000000000000000000000000000"
-  ) {
-    return FALLBACK;
-  }
+export async function getTokenPrice(mintAddress: string): Promise<TokenPrice> {
+  if (!mintAddress) return FALLBACK;
 
   try {
-    const res = await fetch(`${DEXSCREENER_BASE}/${contractAddress}`, {
-      next: { revalidate: 30 }, // cache 30s in Next.js
+    const res = await fetch(`${DEXSCREENER_BASE}/${mintAddress}`, {
+      next: { revalidate: 30 },
     });
 
     if (!res.ok) return FALLBACK;
@@ -38,12 +31,12 @@ export async function getTokenPrice(
     const data = await res.json();
     const pairs: any[] = data.pairs ?? [];
 
-    // Prefer the Base chain pair with highest liquidity
-    const basePairs = pairs
-      .filter((p) => p.chainId === "ethereum")
+    // Prefer the Solana pair with highest liquidity
+    const solanaPairs = pairs
+      .filter((p) => p.chainId === "solana")
       .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0));
 
-    const pair = basePairs[0];
+    const pair = solanaPairs[0];
     if (!pair) return FALLBACK;
 
     return {
@@ -56,5 +49,26 @@ export async function getTokenPrice(
     };
   } catch {
     return FALLBACK;
+  }
+}
+
+// ─── SOL price in USD (via SOL/USDC pair on DexScreener) ──────────────────────
+// Wrapped SOL mint on Solana
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
+
+export async function getSolPriceUsd(): Promise<number> {
+  try {
+    const res = await fetch(`${DEXSCREENER_BASE}/${WSOL_MINT}`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return 150; // fallback
+    const data = await res.json();
+    const pairs: any[] = data.pairs ?? [];
+    const best = pairs
+      .filter((p) => p.chainId === "solana")
+      .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+    return best ? parseFloat(best.priceUsd ?? "0") || 150 : 150;
+  } catch {
+    return 150;
   }
 }

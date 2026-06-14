@@ -15,8 +15,12 @@ export default function Hero({ magicPhrase, contract, shiftsCompleted }: HeroPro
   const { connect, isConnected, isConnecting } = useWallet();
   const [copied, setCopied] = useState(false);
 
+  // Solana mint is base58 — placeholder is empty, undefined, or the literal placeholder text
   const isPlaceholder =
-    contract === "0x0000000000000000000000000000000000000000";
+    !contract ||
+    contract === "YOUR_SPL_TOKEN_MINT_ADDRESS_HERE" ||
+    contract.length < 32;
+
   const displayCA = isPlaceholder ? "soon™" : contract;
 
   function copyCA() {
@@ -35,7 +39,7 @@ export default function Hero({ magicPhrase, contract, shiftsCompleted }: HeroPro
     <section className={styles.hero}>
       <div className="container">
         <div className={styles.eyebrow}>
-          ⚡ NOW LIVE ON ETH · ROUND #{shiftsCompleted + 1}
+          ⚡ NOW LIVE ON SOLANA · ROUND #{shiftsCompleted + 1}
         </div>
 
         <h1 className={styles.h1}>
@@ -46,8 +50,8 @@ export default function Hero({ magicPhrase, contract, shiftsCompleted }: HeroPro
         </h1>
 
         <p className={styles.sub}>
-          Hold <code className={styles.ticker}>$PKMN</code> on Ethereum, evolve your
-          trainer Pokémon, and earn ETH from the vault every round.
+          Hold <code className={styles.ticker}>$PKMN</code> on Solana, evolve your
+          trainer Pokémon, and earn SOL from the vault every round.
           The longer you hold, the stronger you become.
         </p>
 

@@ -118,7 +118,7 @@ export default function TrainerPage() {
                     <div className={styles.pokeball} />
                     <p>No $PKMN held yet</p>
                     <p style={{ fontSize: 12, color: "var(--text-dim2)", marginTop: 8 }}>
-                      Buy $PKMN on Ethereum to get your Pokémon
+                      Buy $PKMN on Solana to get your Pokémon
                     </p>
                   </div>
                 )}
@@ -163,7 +163,7 @@ export default function TrainerPage() {
                   </div>
                   <div className={styles.statBox}>
                     <div className={styles.statLabel}>TOTAL EARNED</div>
-                    <div className={styles.statVal}>{(holder?.total_eth_earned ?? 0).toFixed(6)}</div>
+                    <div className={styles.statVal}>{(holder?.total_sol_earned ?? 0).toFixed(6)}</div>
                     <div className={styles.statSub}>ETH all-time</div>
                   </div>
                   <div className={styles.statBox}>

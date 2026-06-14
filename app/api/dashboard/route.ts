@@ -8,7 +8,7 @@ const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT!;
 const MAGIC_PHRASES = [
   "i choose you",
   "gotta catch em all",
-  "ethereum is power",
+  "base is power",
   "evolve or die",
   "hold for glory",
 ];

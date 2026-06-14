@@ -25,10 +25,10 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "$PKMN",
   description:
-    "The first Pokémon-themed token on Ethereum. Hold $PKMN, evolve your trainer, earn from the vault.",
+    "The first Pokémon-themed token on Solana. Hold $PKMN, evolve your trainer, earn from the vault.",
   openGraph: {
     title: "$PKMN",
-    description: "Hold $PKMN on Ethereum. Evolve your Pokémon. Earn ETH.",
+    description: "Hold $PKMN on Solana. Evolve your Pokémon. Earn SOL.",
     type: "website",
   },
   twitter: {

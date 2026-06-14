@@ -47,7 +47,7 @@ export default function PayoutsPanel({ payouts, myWallet }: PayoutsPanelProps) {
                   </div>
                   <div className={styles.mono}>#{p.round_id}</div>
                   <div className={styles.mono}>{p.share_pct.toFixed(1)}%</div>
-                  <div className={styles.mono}>{p.amount_eth.toFixed(6)}</div>
+                  <div className={styles.mono}>{p.amount_sol.toFixed(6)}</div>
                   <div className={`${styles.mono} ${styles.right} ${styles.usd}`}>
                     ${p.amount_usd.toFixed(2)}
                   </div>

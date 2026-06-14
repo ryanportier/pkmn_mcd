@@ -15,7 +15,7 @@ import HowItWorks from "@/components/HowItWorks/HowItWorks";
 import RegisterTrainer from "@/components/RegisterTrainer/RegisterTrainer";
 import Footer from "@/components/Footer/Footer";
 
-const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT ?? "0x0000000000000000000000000000000000000000";
+const CONTRACT = process.env.NEXT_PUBLIC_PKMN_MINT ?? "";
 
 export default function HomePage() {
   const { data, loading, offline } = useDashboard();

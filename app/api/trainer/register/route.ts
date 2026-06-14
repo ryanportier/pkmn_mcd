@@ -1,30 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getWalletTokenBalance } from "@/lib/alchemy";
+import { isValidPublicKey } from "@/lib/solana";
 import { assignPokemon, POKEMON, getEvolutionLevel, getEvolutionName } from "@/lib/pokemon";
 
-const CONTRACT = process.env.NEXT_PUBLIC_PKMN_CONTRACT!;
-const DECIMALS = 18;
+const MINT     = process.env.NEXT_PUBLIC_PKMN_MINT!;
+const DECIMALS = 9;
 
 export async function POST(req: NextRequest) {
   try {
     const { wallet, twitter_handle } = await req.json();
 
-    if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    if (!wallet || !isValidPublicKey(wallet)) {
       return NextResponse.json(
-        { error: "Invalid wallet address" },
+        { error: "Invalid Solana wallet address" },
         { status: 400 }
       );
     }
 
-    const cleanWallet  = wallet.toLowerCase();
+    const cleanWallet  = wallet as string; // base58, case-sensitive
     const cleanTwitter = twitter_handle
-      ? twitter_handle.replace(/^@/, "").toLowerCase().trim()
+      ? (twitter_handle as string).replace(/^@/, "").toLowerCase().trim()
       : null;
 
-    // ── 1. Verify holder via Alchemy ─────────────────────────────────────────
-    const rawBalance = await getWalletTokenBalance(cleanWallet, CONTRACT);
-    const balance    = Number(BigInt(rawBalance)) / Math.pow(10, DECIMALS);
+    // ── 1. Verify holder via Alchemy ──────────────────────────────────────────
+    const rawBalance = await getWalletTokenBalance(cleanWallet, MINT);
+    const balance    = Number(rawBalance) / Math.pow(10, DECIMALS);
 
     if (balance <= 0) {
       return NextResponse.json(
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
     const pk        = POKEMON[pokemonId];
     const level     = getEvolutionLevel(balance);
 
-    // ── 2. Upsert holder row (in case sync hasn't run yet) ───────────────────
+    // ── 2. Upsert holder row ──────────────────────────────────────────────────
     await supabase.from("holders").upsert(
       {
         wallet: cleanWallet,
@@ -54,14 +55,14 @@ export async function POST(req: NextRequest) {
         effective_multiplier: level,
         share_pct: 0,
         estimated_payout_usd: 0,
-        total_eth_earned: 0,
+        total_sol_earned: 0,
         callout_verified: false,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "wallet", ignoreDuplicates: true }
     );
 
-    // ── 3. Upsert trainer profile ────────────────────────────────────────────
+    // ── 3. Upsert trainer profile ─────────────────────────────────────────────
     const { data: existing } = await supabase
       .from("trainer_profiles")
       .select("*")
@@ -69,7 +70,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (existing) {
-      // Already registered — update twitter if provided
       if (cleanTwitter && cleanTwitter !== existing.twitter_handle) {
         await supabase
           .from("trainer_profiles")

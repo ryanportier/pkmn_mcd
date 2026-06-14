@@ -6,8 +6,19 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   type ReactNode,
 } from "react";
+
+import {
+  useWallet,
+  ConnectionProvider,
+  WalletProvider as SolanaWalletProvider,
+} from "@solana/wallet-adapter-react";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
+import bs58 from "bs58";
 
 interface WalletContextValue {
   wallet: string | null;
@@ -29,48 +40,61 @@ const WalletContext = createContext<WalletContextValue>({
   error: null,
 });
 
-export function WalletProvider({ children }: { children: ReactNode }) {
-  const [wallet, setWallet]         = useState<string | null>(null);
-  const [isSigned, setIsSigned]     = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
+function WalletInner({ children }: { children: ReactNode }) {
+  const {
+    publicKey,
+    connected,
+    connecting,
+    signMessage,
+    connect: adapterConnect,
+    disconnect: adapterDisconnect,
+    select,
+    wallets,
+    wallet: selectedWallet,
+  } = useWallet();
 
+  const [isSigned, setIsSigned] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  // Restore session from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("pkmn_wallet");
-    if (saved) {
-      setWallet(saved);
+    if (saved && publicKey && saved === publicKey.toBase58()) {
       setIsSigned(true);
     }
-  }, []);
+  }, [publicKey]);
 
   const connect = useCallback(async () => {
     setError(null);
-    setIsConnecting(true);
 
     try {
-      const ethereum = (window as any).ethereum;
-      if (!ethereum) throw new Error("No wallet found. Install MetaMask.");
+      if (!connected) {
+        // Find installed wallets (Phantom preferred)
+        const installed = wallets.filter(
+          (w) => w.readyState === WalletReadyState.Installed
+        );
+        const target =
+          installed.find((w) => w.adapter.name.toLowerCase().includes("phantom")) ??
+          installed[0];
 
-      const accounts: string[] = await ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      const address = accounts[0].toLowerCase();
+        if (!target) {
+          window.open("https://phantom.app/", "_blank");
+          return;
+        }
 
-      // Switch to Ethereum mainnet (chainId 1 = 0x1)
-      try {
-        await ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x1" }],
-        });
-      } catch (switchErr: any) {
-        // 0x1 is always available in MetaMask — no need to addEthereumChain
-        if (switchErr.code !== 4902) throw switchErr;
+        // select() triggers the useEffect below which calls adapterConnect()
+        select(target.adapter.name);
+        return;
       }
 
-      setWallet(address);
+      if (!publicKey || !signMessage) {
+        throw new Error("Wallet not ready");
+      }
+
+      const address = publicKey.toBase58();
       localStorage.setItem("pkmn_wallet", address);
 
-      // SIWE in background
+      // SIWS in background
       try {
         const nonceRes = await fetch("/api/auth/nonce");
         const { nonce } = await nonceRes.json();
@@ -78,67 +102,98 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const domain  = window.location.host;
         const uri     = window.location.origin;
         const message = [
-          `${domain} wants you to sign in with your Ethereum account:`,
+          `${domain} wants you to sign in with your Solana account:`,
           address,
           "",
-          "Sign in to $PKMN. Gotta catch em all.",
+          "Sign in to $PKMN on Solana. Gotta catch em all.",
           "",
           `URI: ${uri}`,
           "Version: 1",
-          "Chain ID: 1",
+          "Chain ID: mainnet-beta",
           `Nonce: ${nonce}`,
           `Issued At: ${new Date().toISOString()}`,
         ].join("\n");
 
-        const signature = await ethereum.request({
-          method: "personal_sign",
-          params: [message, address],
-        });
+        const msgBytes  = new TextEncoder().encode(message);
+        const sigBytes  = await signMessage(msgBytes);
+        const signature = bs58.encode(sigBytes);
 
         const verifyRes = await fetch("/api/auth/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, signature }),
+          body: JSON.stringify({ message, signature, publicKey: address }),
         });
 
         if (verifyRes.ok) {
           setIsSigned(true);
-          localStorage.setItem("pkmn_wallet", address);
         }
       } catch {
-        // SIWE optional — wallet still connected
+        // user rejected sign — wallet still connected for basic access
       }
-
     } catch (e: any) {
       setError(e.message ?? "Connection failed");
-      setWallet(null);
-    } finally {
-      setIsConnecting(false);
     }
-  }, []);
+  }, [connected, publicKey, signMessage, wallets, select]);
+
+  // Once a wallet is selected but not connected → open the popup
+  useEffect(() => {
+    if (selectedWallet && !connected && !connecting) {
+      adapterConnect().catch(() => {});
+    }
+  }, [selectedWallet, connected, connecting, adapterConnect]);
+
+  // Once connected → run SIWS
+  useEffect(() => {
+    if (connected && publicKey && !isSigned) {
+      connect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey]);
 
   const disconnect = useCallback(async () => {
     await fetch("/api/auth/verify", { method: "DELETE" }).catch(() => {});
-    setWallet(null);
+    adapterDisconnect();
     setIsSigned(false);
     localStorage.removeItem("pkmn_wallet");
-  }, []);
+  }, [adapterDisconnect]);
 
   return (
-    <WalletContext.Provider value={{
-      wallet,
-      isConnected: !!wallet,
-      isConnecting,
-      isSigned,
-      connect,
-      disconnect,
-      error,
-    }}>
+    <WalletContext.Provider
+      value={{
+        wallet: publicKey?.toBase58() ?? null,
+        isConnected: !!publicKey,
+        isConnecting: connecting,
+        isSigned,
+        connect,
+        disconnect,
+        error,
+      }}
+    >
       {children}
     </WalletContext.Provider>
   );
 }
 
-export function useWallet() {
+export function WalletProvider({ children }: { children: ReactNode }) {
+  const endpoint =
+    process.env.NEXT_PUBLIC_SOLANA_RPC ?? "https://api.mainnet-beta.solana.com";
+
+  const adapters = useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    []
+  );
+
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <SolanaWalletProvider wallets={adapters} autoConnect={false}>
+        <WalletInner>{children}</WalletInner>
+      </SolanaWalletProvider>
+    </ConnectionProvider>
+  );
+}
+
+export function useWalletContext() {
   return useContext(WalletContext);
 }
+
+export { useWalletContext as useWallet };

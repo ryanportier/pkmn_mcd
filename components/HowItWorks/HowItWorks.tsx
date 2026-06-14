@@ -3,9 +3,9 @@ import styles from "./HowItWorks.module.css";
 const STEPS = [
   {
     n: "01",
-    title: "Buy $PKMN on Ethereum",
-    body: "Grab $PKMN on Uniswap or any Ethereum DEX. Connect your wallet to reveal which Pokémon is yours.",
-    code: "ethereum-mainnet",
+    title: "Buy $PKMN on Solana",
+    body: "Grab $PKMN on any Base DEX (Uniswap, Aerodrome). Connect your wallet to reveal which Pokémon is yours.",
+    code: "base-mainnet",
   },
   {
     n: "02",
