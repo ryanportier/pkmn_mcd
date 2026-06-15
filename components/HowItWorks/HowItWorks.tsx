@@ -4,8 +4,8 @@ const STEPS = [
   {
     n: "01",
     title: "Buy $PKMN on Solana",
-    body: "Grab $PKMN on any Base DEX (Uniswap, Aerodrome). Connect your wallet to reveal which Pokémon is yours.",
-    code: "base-mainnet",
+    body: "Grab $PKMN on any Solana DEX (Uniswap). Connect your wallet to reveal which Pokémon is yours.",
+    code: "solana-mainnet",
   },
   {
     n: "02",
