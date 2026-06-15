@@ -93,7 +93,7 @@ export default function TrainerAgent() {
             <div>
               <div className={styles.headerTitle}>PROFESSOR OAK</div>
               <div className={styles.headerSub}>
-                AI Trainer Agent · Powered by BankrBot
+                AI Trainer Agent · Powered by Claude.
               </div>
             </div>
           </div>
